@@ -68,3 +68,9 @@ coverage.out
 
 # Air live reload
 .air.toml
+
+# Radarr / Sonarr files
+data/radarr/
+data/sonarr/
+data/downloads/
+data/postgres/
