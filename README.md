@@ -73,14 +73,95 @@ export STALKEER_M3U_FILE_PATH=/path/to/playlist.m3u
 ### Running
 
 ```bash
-# Using the binary
-./bin/stalkeer
+# Process an M3U playlist file and store to database
+./bin/stalkeer process /path/to/playlist.m3u
 
-# Or using go run
-go run cmd/main.go
+# Process with limit
+./bin/stalkeer process /path/to/playlist.m3u --limit 100
+
+# Force re-processing of existing entries
+./bin/stalkeer process /path/to/playlist.m3u --force
+
+# Dry-run analysis without database changes
+./bin/stalkeer dryrun /path/to/playlist.m3u --limit 100
+
+# Start the REST API server
+./bin/stalkeer server --port 8080
+
+# Run database migrations
+./bin/stalkeer migrate
 
 # Check version
 ./bin/stalkeer version
+
+# Get help
+./bin/stalkeer --help
+./bin/stalkeer process --help
+```
+
+### CLI Commands
+
+#### process
+
+Process an M3U playlist file, classify content, and store entries in the database:
+
+```bash
+stalkeer process [m3u file] [flags]
+
+Flags:
+      --force              re-process existing entries
+      --limit int          maximum number of items to process (0 = no limit)
+      --batch-size int     batch size for database inserts (default 100)
+      --progress int       show progress every N entries (default 1000)
+```
+
+Example output:
+```
+=== Processing Complete ===
+Total lines in file:  1000
+Successfully processed: 985
+Duplicates skipped:   5
+Filtered out:         8
+Errors:               2
+
+Content breakdown:
+  Movies:        742
+  TV Shows:      231
+  Channels:      0
+  Uncategorized: 12
+
+Processing time: 1.2s
+```
+
+#### dryrun
+
+Analyze M3U playlist file without making database changes:
+
+```bash
+stalkeer dryrun [m3u file] [flags]
+
+Flags:
+      --limit int   maximum number of items to analyze (default 100)
+```
+
+#### server
+
+Start the REST API server:
+
+```bash
+stalkeer server [flags]
+
+Flags:
+  -p, --port int       port to run the server on (default 8080)
+  -a, --address string address to bind the server to (default "0.0.0.0")
+```
+
+#### migrate
+
+Run database migrations:
+
+```bash
+stalkeer migrate
 ```
 
 ### Using Docker Compose
@@ -90,7 +171,7 @@ go run cmd/main.go
 docker-compose up -d postgres
 
 # Run the application
-./bin/stalkeer
+./bin/stalkeer process
 ```
 
 ## Development

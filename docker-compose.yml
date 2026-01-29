@@ -1,6 +1,6 @@
 services:
   postgres:
-    image: postgres:16-alpine
+    image: postgres:18-alpine
     environment:
       POSTGRES_DB: stalkeer
       POSTGRES_USER: postgres
@@ -49,28 +49,28 @@ services:
 
   # DEVELOPMENT purpose only
   ## Optional web server to serve as streaming server for testing
-  web:
-    image: nginx:alpine
-    ports:
-      - "8008:80"
-    volumes:
-      - ./webserver/nginx.conf:/etc/nginx/conf.d/default.conf
-      - ./webserver/html:/usr/share/nginx/html
-    restart: unless-stopped
+  # web:
+  #   image: nginx:alpine
+  #   ports:
+  #     - "8008:80"
+  #   volumes:
+  #     - ./webserver/nginx.conf:/etc/nginx/conf.d/default.conf
+  #     - ./webserver/html:/usr/share/nginx/html
+  #   restart: unless-stopped
 
   # DEVELOPMENT purpose only
   ## Optional Sonarr/Radarr/Prowlarr services for managing downloads for testing
-  prowlarr:
-    image: lscr.io/linuxserver/prowlarr:latest
-    environment:
-      - PUID=1000
-      - PGID=1000
-      - TZ=Etc/UTC
-    volumes:
-      - ./data/prowlarr:/config
-    ports:
-      - 9696:9696
-    restart: unless-stopped
+  # prowlarr:
+  #   image: lscr.io/linuxserver/prowlarr:latest
+  #   environment:
+  #     - PUID=1000
+  #     - PGID=1000
+  #     - TZ=Etc/UTC
+  #   volumes:
+  #     - ./data/prowlarr:/config
+  #   ports:
+  #     - 9696:9696
+  #   restart: unless-stopped
 
   sonarr:
     image: lscr.io/linuxserver/sonarr:latest
@@ -98,21 +98,21 @@ services:
       - 7878:7878
     restart: unless-stopped
 
-  qbittorrent:
-    image: lscr.io/linuxserver/qbittorrent:latest
-    environment:
-      - PUID=1000
-      - PGID=1000
-      - TZ=Etc/UTC
-      - WEBUI_PORT=8080
-    volumes:
-      - ./data/qbittorrent:/config
-      - ./data/downloads:/downloads
-    ports:
-      - 8080:8080
-      - 6881:6881
-      - 6881:6881/udp
-    restart: unless-stopped
+  # qbittorrent:
+  #   image: lscr.io/linuxserver/qbittorrent:latest
+  #   environment:
+  #     - PUID=1000
+  #     - PGID=1000
+  #     - TZ=Etc/UTC
+  #     - WEBUI_PORT=8080
+  #   volumes:
+  #     - ./data/qbittorrent:/config
+  #     - ./data/downloads:/downloads
+  #   ports:
+  #     - 8080:8080
+  #     - 6881:6881
+  #     - 6881:6881/udp
+  #   restart: unless-stopped
 
 volumes:
   postgres_data:

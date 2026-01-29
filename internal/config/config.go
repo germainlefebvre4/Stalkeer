@@ -12,9 +12,11 @@ import (
 type Config struct {
 	Database DatabaseConfig `mapstructure:"database"`
 	M3U      M3UConfig      `mapstructure:"m3u"`
-	Filters  []FilterDef    `mapstructure:"filters"`
+	Filter   FilterConfig   `mapstructure:"filter"`
 	Logging  LoggingConfig  `mapstructure:"logging"`
 	API      APIConfig      `mapstructure:"api"`
+	Radarr   RadarrConfig   `mapstructure:"radarr"`
+	Sonarr   SonarrConfig   `mapstructure:"sonarr"`
 }
 
 // DatabaseConfig holds database connection settings
@@ -33,9 +35,14 @@ type M3UConfig struct {
 	UpdateInterval int    `mapstructure:"update_interval"`
 }
 
+// FilterConfig holds filter settings
+type FilterConfig struct {
+	GroupTitle FilterDef `mapstructure:"group_title"`
+	TvgName    FilterDef `mapstructure:"tvg_name"`
+}
+
 // FilterDef represents a filter definition
 type FilterDef struct {
-	Name            string   `mapstructure:"name"`
 	IncludePatterns []string `mapstructure:"include_patterns"`
 	ExcludePatterns []string `mapstructure:"exclude_patterns"`
 }
@@ -49,6 +56,24 @@ type LoggingConfig struct {
 // APIConfig holds API server settings
 type APIConfig struct {
 	Port int `mapstructure:"port"`
+}
+
+// RadarrConfig holds Radarr integration settings
+type RadarrConfig struct {
+	URL              string `mapstructure:"url"`
+	APIKey           string `mapstructure:"api_key"`
+	Enabled          bool   `mapstructure:"enabled"`
+	SyncInterval     int    `mapstructure:"sync_interval"`
+	QualityProfileID int    `mapstructure:"quality_profile_id"`
+}
+
+// SonarrConfig holds Sonarr integration settings
+type SonarrConfig struct {
+	URL              string `mapstructure:"url"`
+	APIKey           string `mapstructure:"api_key"`
+	Enabled          bool   `mapstructure:"enabled"`
+	SyncInterval     int    `mapstructure:"sync_interval"`
+	QualityProfileID int    `mapstructure:"quality_profile_id"`
 }
 
 var cfg *Config
@@ -81,6 +106,12 @@ func Load() error {
 	viper.BindEnv("logging.level")
 	viper.BindEnv("logging.format")
 	viper.BindEnv("api.port")
+	viper.BindEnv("radarr.url")
+	viper.BindEnv("radarr.api_key")
+	viper.BindEnv("radarr.enabled")
+	viper.BindEnv("sonarr.url")
+	viper.BindEnv("sonarr.api_key")
+	viper.BindEnv("sonarr.enabled")
 
 	// Special handling for DATABASE_URL
 	if dbURL := os.Getenv("DATABASE_URL"); dbURL != "" {
@@ -130,6 +161,15 @@ func setDefaults() {
 	// M3U defaults
 	viper.SetDefault("m3u.update_interval", 3600)
 
+	// Radarr defaults
+	viper.SetDefault("radarr.enabled", false)
+	viper.SetDefault("radarr.sync_interval", 3600)
+	viper.SetDefault("radarr.quality_profile_id", 1)
+
+	// Sonarr defaults
+	viper.SetDefault("sonarr.enabled", false)
+	viper.SetDefault("sonarr.sync_interval", 3600)
+	viper.SetDefault("sonarr.quality_profile_id", 1)
 	// Logging defaults
 	viper.SetDefault("logging.level", "info")
 	viper.SetDefault("logging.format", "json")
@@ -145,9 +185,7 @@ func validate() error {
 	if cfg.Database.DBName == "" {
 		return fmt.Errorf("database.dbname is required")
 	}
-	if cfg.M3U.FilePath == "" {
-		return fmt.Errorf("m3u.file_path is required")
-	}
+	// m3u.file_path is optional - can be provided via CLI
 
 	validLevels := map[string]bool{"debug": true, "info": true, "warn": true, "error": true}
 	if !validLevels[cfg.Logging.Level] {

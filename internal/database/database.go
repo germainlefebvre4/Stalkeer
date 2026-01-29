@@ -96,6 +96,11 @@ func runMigrations() error {
 	return db.AutoMigrate(
 		&models.Movie{},
 		&models.TVShow{},
+		&models.Channel{},
+		&models.Uncategorized{},
+		&models.FilterConfig{},
+		&models.ProcessingLog{},
+		&models.DownloadInfo{},
 		&models.ProcessedLine{},
 	)
 }

@@ -10,24 +10,27 @@ database:
   sslmode: disable
 
 m3u:
-  file_path: /path/to/playlist.m3u
+  file_path: /path/to/playlist.m3u  # Optional if provided via CLI argument
   update_interval: 3600  # seconds
 
-filters:
-  - name: movies_only
+# File-based filters (can be overridden by runtime filters)
+filter:
+  group_title:
     include_patterns:
-      - "VOD - Movies"
-      - "Movies HD"
-    exclude_patterns:
-      - "Adult"
-      - "XXX"
-  
-  - name: tv_shows
-    include_patterns:
-      - "TV Shows"
-      - "Series"
+      - "^VOD - Movies"
+      - "^Movies HD"
+      - "^TV Shows"
+      - "^Series"
     exclude_patterns:
       - "Sports"
+      - "Podcast"
+      - "Radio"
+  
+  tvg_name:
+    include_patterns: []
+    exclude_patterns:
+      - "Trailer$"
+      - "Sample$"
 
 logging:
   level: info  # debug, info, warn, error
@@ -35,3 +38,19 @@ logging:
 
 api:
   port: 8080
+
+# Radarr integration (optional)
+radarr:
+  enabled: false
+  url: http://localhost:7878
+  api_key: your_radarr_api_key_here
+  sync_interval: 3600  # seconds
+  quality_profile_id: 1
+
+# Sonarr integration (optional)
+sonarr:
+  enabled: false
+  url: http://localhost:8989
+  api_key: your_sonarr_api_key_here
+  sync_interval: 3600  # seconds
+  quality_profile_id: 1

@@ -1,12 +1,4 @@
 #EXTM3U
-#EXTINF:-1 tvg-id="" tvg-name="Joker : Folie à deux (2024) SUBT AR" tvg-logo="https://image.tmdb.org/t/p/w600_and_h900_bestv2/35v2EPcbxUEGdeKGfPhNgfIg7br.jpg" group-title="AR:SUBT أفلام مترجمة",Joker : Folie à deux (2024) SUBT AR
-http://localhost:8008/movies/987654321098765/9897654321/sample_FRENCH_720p.mkv
-#EXTINF:-1 tvg-id="" tvg-name="The Goat Life (2024) SUBT AR" tvg-logo="https://image.tmdb.org/t/p/w600_and_h900_bestv2/3rg2zZQToxImy4Tuj5RHoLXECOR.jpg" group-title="AR:SUBT أفلام مترجمة",The Goat Life (2024) SUBT AR
-http://localhost:8008/movies/987654321098765/9897654321/sample_FRENCH_720p.mp4
-#EXTINF:-1 tvg-id="" tvg-name="Kingdom of the Planet of the Apes (2024) SUBT AR" tvg-logo="https://image.tmdb.org/t/p/w600_and_h900_bestv2/2FpXJl3cnU4BvKyAvlWN1Yra3Wk.jpg" group-title="AR:SUBT أفلام مترجمة",Kingdom of the Planet of the Apes (2024) SUBT AR
-http://localhost:8008/movies/987654321098765/9897654321/sample_FRENCH_720p.mp4
-#EXTINF:-1 tvg-id="" tvg-name="فيوريوسا: ملحمة ماد ماكس (2024)" tvg-logo="https://image.tmdb.org/t/p/w600_and_h900_bestv2/sln8KBlJDTE67sSpx7Aiswa5Lti.jpg" group-title="AR:SUBT أفلام مترجمة",فيوريوسا: ملحمة ماد ماكس (2024)
-http://localhost:8008/movies/987654321098765/9897654321/sample_FRENCH_720p.mp4
 #EXTINF:-1 tvg-id="" tvg-name="Hunter with a scalpel S01 E01" tvg-logo="https://image.tmdb.org/t/p/w300/s3ENs0yA3hOmlkhBHe7nKQJ1PfJ.jpg" group-title="Séries K-DRAMA",Hunter with a scalpel S01 E01
 http://localhost:8008/series/987654321098765/9897654321/sample_FRENCH_720p.mkv
 #EXTINF:-1 tvg-id="" tvg-name="Hunter with a scalpel S01 E02" tvg-logo="https://image.tmdb.org/t/p/w300/3CJHbjdHPf9bIslHAhNxFsvDWJg.jpg" group-title="Séries K-DRAMA",Hunter with a scalpel S01 E02

@@ -38,16 +38,16 @@ type ProcessedLine struct {
 	TVShowID        *uint           `gorm:"index" json:"tvshow_id,omitempty"`
 	UncategorizedID *uint           `gorm:"index" json:"uncategorized_id,omitempty"`
 	DownloadInfoID  *uint           `gorm:"index:idx_processed_lines_download" json:"download_info_id,omitempty"`
-	State           ProcessingState `gorm:"type:varchar(50);not null;default:'processed';index:idx_processed_lines_content" json:"state"`
+	State           ProcessingState `gorm:"type:varchar(50);not null;default:processed;index:idx_processed_lines_content" json:"state"`
 	CreatedAt       time.Time       `gorm:"not null" json:"created_at"`
 	UpdatedAt       time.Time       `gorm:"not null" json:"updated_at"`
 	OverridesID     *uint           `gorm:"index" json:"overrides_id,omitempty"`
 	OverridesAt     *time.Time      `json:"overrides_at,omitempty"`
 
 	// Associations
-	Movie     *Movie         `gorm:"foreignKey:MovieID;constraint:OnDelete:CASCADE" json:"movie,omitempty"`
-	TVShow    *TVShow        `gorm:"foreignKey:TVShowID;constraint:OnDelete:CASCADE" json:"tvshow,omitempty"`
-	Overrides *ProcessedLine `gorm:"foreignKey:OverridesID;constraint:OnDelete:SET NULL" json:"overrides,omitempty"`
+	Movie     *Movie         `gorm:"foreignKey:MovieID;constraint:OnDelete=CASCADE" json:"movie,omitempty"`
+	TVShow    *TVShow        `gorm:"foreignKey:TVShowID;constraint:OnDelete=CASCADE" json:"tvshow,omitempty"`
+	Overrides *ProcessedLine `gorm:"foreignKey:OverridesID;constraint:OnDelete=SET NULL" json:"overrides,omitempty"`
 }
 
 // TableName specifies the table name for ProcessedLine
