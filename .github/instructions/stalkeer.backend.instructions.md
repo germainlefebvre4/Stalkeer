@@ -27,6 +27,10 @@ Create a configuration file `config.yml` in the root directory of the project.
   - database connection settings
   - m3u file path
   - filtering options (include/exclude patterns for `group-title` and `tvg-name`)
+  - logging settings (level, format)
+  - Directories for
+    - Downloaded items
+    - M3U playlist file
 
 ## Unit Tests
 

@@ -14,7 +14,7 @@ Stalkeer parse Radarr and Sonarr items and download missing items from a m3u pla
 - Read a m3u_playlist file and store the movies/tvshows (exclude channels and podcasts) information in a PostgreSQL database.
 - Provide a REST API to query the movie/tvshows information and allow to filter items based on specific criteria.
 - Parse Radarr and Sonarr items to identify missing movies/tvshows.
-- Download missing items from the m3u playlist via direct links.
+- Download missing items from the m3u playlist via direct links and store them locally.
 
 ### Specifications
 
