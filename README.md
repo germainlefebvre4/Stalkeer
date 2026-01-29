@@ -9,9 +9,11 @@
 ## Features
 
 - 📺 Parse M3U playlist files for movies and TV shows
+- 🎬 **TMDB Integration** - Enrich media metadata with title, year, genres, posters, and more
 - 🗄️ Store media information in PostgreSQL database
 - 🔍 Filter playlist items based on configurable patterns
-- 🎬 Identify missing items from Radarr and Sonarr
+- 🌍 Multi-language support for TMDB metadata (English, French, Spanish, etc.)
+- 🎯 Identify missing items from Radarr and Sonarr
 - ⬇️ Download missing items via direct links
 - 🚀 REST API for querying and managing media items
 - 📊 Processing logs and statistics
@@ -58,6 +60,11 @@ m3u:
   file_path: /path/to/playlist.m3u
   update_interval: 3600
 
+tmdb:
+  enabled: true
+  api_key: your_tmdb_api_key  # Get from https://www.themoviedb.org/settings/api
+  language: en-US  # Language for metadata (en-US, fr-FR, es-ES, etc.)
+
 api:
   port: 8080
 ```
@@ -75,6 +82,12 @@ export STALKEER_M3U_FILE_PATH=/path/to/playlist.m3u
 ```bash
 # Process an M3U playlist file and store to database
 ./bin/stalkeer process /path/to/playlist.m3u
+
+# Process with TMDB enrichment in French
+./bin/stalkeer process /path/to/playlist.m3u --tmdb-language fr-FR
+
+# Process without TMDB enrichment (faster)
+./bin/stalkeer process /path/to/playlist.m3u --skip-tmdb
 
 # Process with limit
 ./bin/stalkeer process /path/to/playlist.m3u --limit 100
@@ -103,7 +116,7 @@ export STALKEER_M3U_FILE_PATH=/path/to/playlist.m3u
 
 #### process
 
-Process an M3U playlist file, classify content, and store entries in the database:
+Process an M3U playlist file, classify content, enrich with TMDB metadata, and store entries in the database:
 
 ```bash
 stalkeer process [m3u file] [flags]
@@ -113,6 +126,8 @@ Flags:
       --limit int          maximum number of items to process (0 = no limit)
       --batch-size int     batch size for database inserts (default 100)
       --progress int       show progress every N entries (default 1000)
+      --skip-tmdb          skip TMDB metadata enrichment
+      --tmdb-language      TMDB API language (e.g., 'en-US', 'fr-FR')
 ```
 
 Example output:
@@ -129,6 +144,12 @@ Content breakdown:
   TV Shows:      231
   Channels:      0
   Uncategorized: 12
+
+TMDB Enrichment:
+  Matched:       891
+  Not found:     76
+  Errors:        6
+  Match rate:    92.1%
 
 Processing time: 1.2s
 ```

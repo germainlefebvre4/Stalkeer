@@ -137,6 +137,8 @@ extraction.`,
 		limit, _ := cmd.Flags().GetInt("limit")
 		batchSize, _ := cmd.Flags().GetInt("batch-size")
 		progress, _ := cmd.Flags().GetInt("progress")
+		skipTMDB, _ := cmd.Flags().GetBool("skip-tmdb")
+		tmdbLanguage, _ := cmd.Flags().GetString("tmdb-language")
 
 		fmt.Printf("Processing M3U file: %s\n", filePath)
 		if force {
@@ -144,6 +146,13 @@ extraction.`,
 		}
 		if limit > 0 {
 			fmt.Printf("Processing limit: %d entries\n", limit)
+		}
+		if skipTMDB {
+			fmt.Println("TMDB enrichment: disabled")
+		} else {
+			if tmdbLanguage != "" {
+				fmt.Printf("TMDB language: %s\n", tmdbLanguage)
+			}
 		}
 		fmt.Println()
 
@@ -167,6 +176,8 @@ extraction.`,
 			Limit:            limit,
 			BatchSize:        batchSize,
 			ProgressInterval: progress,
+			SkipTMDB:         skipTMDB,
+			TMDBLanguage:     tmdbLanguage,
 		}
 
 		stats, err := proc.Process(opts)
@@ -187,6 +198,18 @@ extraction.`,
 		fmt.Printf("  TV Shows:      %d\n", stats.TVShows)
 		fmt.Printf("  Channels:      %d\n", stats.Channels)
 		fmt.Printf("  Uncategorized: %d\n", stats.Uncategorized)
+
+		if !skipTMDB {
+			fmt.Printf("\nTMDB Enrichment:\n")
+			fmt.Printf("  Matched:       %d\n", stats.TMDBMatched)
+			fmt.Printf("  Not found:     %d\n", stats.TMDBNotFound)
+			fmt.Printf("  Errors:        %d\n", stats.TMDBErrors)
+			if stats.TMDBMatched+stats.TMDBNotFound > 0 {
+				matchRate := float64(stats.TMDBMatched) / float64(stats.TMDBMatched+stats.TMDBNotFound) * 100
+				fmt.Printf("  Match rate:    %.1f%%\n", matchRate)
+			}
+		}
+
 		fmt.Printf("\nProcessing time: %v\n", stats.Duration)
 
 		if stats.Errors > 0 {
@@ -301,6 +324,8 @@ func init() {
 	processCmd.Flags().Int("limit", 0, "maximum number of items to process (0 = no limit)")
 	processCmd.Flags().Int("batch-size", 100, "batch size for database inserts")
 	processCmd.Flags().Int("progress", 1000, "show progress every N entries")
+	processCmd.Flags().Bool("skip-tmdb", false, "skip TMDB metadata enrichment")
+	processCmd.Flags().String("tmdb-language", "", "TMDB API language (e.g., 'en-US', 'fr-FR')")
 
 	// Dry-run command flags
 	dryrunCmd.Flags().Int("limit", 100, "maximum number of items to analyze")

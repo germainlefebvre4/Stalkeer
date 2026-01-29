@@ -15,6 +15,7 @@ type Config struct {
 	Filter   FilterConfig   `mapstructure:"filter"`
 	Logging  LoggingConfig  `mapstructure:"logging"`
 	API      APIConfig      `mapstructure:"api"`
+	TMDB     TMDBConfig     `mapstructure:"tmdb"`
 	Radarr   RadarrConfig   `mapstructure:"radarr"`
 	Sonarr   SonarrConfig   `mapstructure:"sonarr"`
 }
@@ -56,6 +57,13 @@ type LoggingConfig struct {
 // APIConfig holds API server settings
 type APIConfig struct {
 	Port int `mapstructure:"port"`
+}
+
+// TMDBConfig holds TMDB API settings
+type TMDBConfig struct {
+	APIKey   string `mapstructure:"api_key"`
+	Language string `mapstructure:"language"`
+	Enabled  bool   `mapstructure:"enabled"`
 }
 
 // RadarrConfig holds Radarr integration settings
@@ -106,6 +114,9 @@ func Load() error {
 	viper.BindEnv("logging.level")
 	viper.BindEnv("logging.format")
 	viper.BindEnv("api.port")
+	viper.BindEnv("tmdb.api_key")
+	viper.BindEnv("tmdb.language")
+	viper.BindEnv("tmdb.enabled")
 	viper.BindEnv("radarr.url")
 	viper.BindEnv("radarr.api_key")
 	viper.BindEnv("radarr.enabled")
@@ -173,6 +184,10 @@ func setDefaults() {
 	// Logging defaults
 	viper.SetDefault("logging.level", "info")
 	viper.SetDefault("logging.format", "json")
+
+	// TMDB defaults
+	viper.SetDefault("tmdb.enabled", true)
+	viper.SetDefault("tmdb.language", "en-US")
 
 	// API defaults
 	viper.SetDefault("api.port", 8080)

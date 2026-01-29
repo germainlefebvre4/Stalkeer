@@ -4,10 +4,14 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"regexp"
+	"strings"
 	"time"
 
 	"github.com/glefebvre/stalkeer/internal/classifier"
+	"github.com/glefebvre/stalkeer/internal/config"
 	"github.com/glefebvre/stalkeer/internal/database"
+	"github.com/glefebvre/stalkeer/internal/external/tmdb"
 	"github.com/glefebvre/stalkeer/internal/filter"
 	"github.com/glefebvre/stalkeer/internal/logger"
 	"github.com/glefebvre/stalkeer/internal/models"
@@ -21,6 +25,8 @@ type ProcessOptions struct {
 	Limit            int
 	BatchSize        int
 	ProgressInterval int
+	SkipTMDB         bool
+	TMDBLanguage     string
 }
 
 // Statistics holds processing statistics
@@ -34,6 +40,9 @@ type Statistics struct {
 	TVShows         int
 	Channels        int
 	Uncategorized   int
+	TMDBMatched     int
+	TMDBNotFound    int
+	TMDBErrors      int
 	Duration        time.Duration
 	ErrorMessages   []string
 }
@@ -44,6 +53,7 @@ type Processor struct {
 	parser     *parser.Parser
 	classifier *classifier.Classifier
 	filter     *filter.Manager
+	tmdbClient *tmdb.Client
 	logger     *logger.Logger
 	db         *gorm.DB
 }
@@ -67,12 +77,25 @@ func NewProcessor(filePath string) (*Processor, error) {
 			"error": err,
 		}).Warn("failed to load filters, continuing without filters")
 	}
+	// Initialize TMDB client if enabled
+	var tmdbClient *tmdb.Client
+	cfg := config.Get()
+	if cfg.TMDB.Enabled && cfg.TMDB.APIKey != "" {
+		tmdbClient = tmdb.NewClient(tmdb.Config{
+			APIKey:   cfg.TMDB.APIKey,
+			Language: cfg.TMDB.Language,
+		})
+		log.Info("TMDB client initialized")
+	} else {
+		log.Warn("TMDB integration disabled or API key not configured")
+	}
 
 	return &Processor{
 		filePath:   filePath,
 		parser:     p,
 		classifier: c,
 		filter:     f,
+		tmdbClient: tmdbClient,
 		logger:     log,
 		db:         db,
 	}, nil
@@ -153,8 +176,8 @@ func (p *Processor) Process(opts ProcessOptions) (*Statistics, error) {
 		// Classify content
 		classification := p.classifier.Classify(line.TvgName, line.GroupTitle)
 
-		// Set content type and create associations
-		if err := p.setContentType(&line, classification); err != nil {
+		// Set content type and create associations (with TMDB enrichment)
+		if err := p.setContentType(&line, classification, &opts, stats); err != nil {
 			stats.Errors++
 			errMsg := fmt.Sprintf("error setting content type for line %d: %v", i+1, err)
 			stats.ErrorMessages = append(stats.ErrorMessages, errMsg)
@@ -225,24 +248,215 @@ func (p *Processor) checkDuplicate(lineHash string) (bool, error) {
 	return count > 0, err
 }
 
-// setContentType sets the content type and creates necessary associations
-func (p *Processor) setContentType(line *models.ProcessedLine, classification classifier.Classification) error {
+// setContentType sets the content type and creates necessary associations with TMDB enrichment
+func (p *Processor) setContentType(line *models.ProcessedLine, classification classifier.Classification, opts *ProcessOptions, stats *Statistics) error {
+	// Determine language for TMDB
+	language := opts.TMDBLanguage
+	if language == "" {
+		cfg := config.Get()
+		language = cfg.TMDB.Language
+		if language == "" {
+			language = "en-US"
+		}
+	}
+
 	switch classification.ContentType {
 	case classifier.ContentTypeMovie:
 		line.ContentType = models.ContentTypeMovies
-		// Movie association will be created later by enrichment service
+
+		// Try to enrich with TMDB if enabled
+		if !opts.SkipTMDB && p.tmdbClient != nil {
+			if err := p.enrichMovie(line, language, stats); err != nil {
+				// Log error but don't fail the processing
+				p.logger.WithFields(map[string]interface{}{
+					"title": line.TvgName,
+					"error": err,
+				}).Warn("failed to enrich movie with TMDB")
+			}
+		}
 		return nil
 
 	case classifier.ContentTypeSeries:
 		line.ContentType = models.ContentTypeTVShows
-		// TVShow association will be created later by enrichment service
-		// Store season/episode info for later use
+
+		// Try to enrich with TMDB if enabled
+		if !opts.SkipTMDB && p.tmdbClient != nil {
+			if err := p.enrichTVShow(line, classification, language, stats); err != nil {
+				// Log error but don't fail the processing
+				p.logger.WithFields(map[string]interface{}{
+					"title": line.TvgName,
+					"error": err,
+				}).Warn("failed to enrich TV show with TMDB")
+			}
+		}
 		return nil
 
 	default:
 		line.ContentType = models.ContentTypeUncategorized
 		return nil
 	}
+}
+
+// enrichMovie fetches movie data from TMDB and creates/updates Movie association
+func (p *Processor) enrichMovie(line *models.ProcessedLine, language string, stats *Statistics) error {
+	// Extract title and year from tvg-name
+	title, year := p.extractTitleAndYear(line.TvgName)
+
+	// Search TMDB
+	result, err := p.tmdbClient.SearchMovie(title, year)
+	if err != nil {
+		stats.TMDBNotFound++
+		return err
+	}
+
+	// Get detailed information
+	details, err := p.tmdbClient.GetMovieDetails(result.ID)
+	if err != nil {
+		stats.TMDBErrors++
+		return err
+	}
+
+	// Create or find existing movie
+	var movie models.Movie
+	tmdbYear := tmdb.ExtractYear(details.ReleaseDate)
+	genres := tmdb.FormatGenres(details.Genres)
+
+	// Check if movie already exists
+	err = p.db.Where("tmdb_id = ? AND tmdb_year = ?", details.ID, tmdbYear).First(&movie).Error
+	if err == gorm.ErrRecordNotFound {
+		// Create new movie
+		movie = models.Movie{
+			TMDBID:     details.ID,
+			TMDBTitle:  details.Title,
+			TMDBYear:   tmdbYear,
+			TMDBGenres: &genres,
+			Duration:   details.Runtime,
+		}
+		if err := p.db.Create(&movie).Error; err != nil {
+			stats.TMDBErrors++
+			return fmt.Errorf("failed to create movie: %w", err)
+		}
+	} else if err != nil {
+		stats.TMDBErrors++
+		return fmt.Errorf("failed to check for existing movie: %w", err)
+	}
+
+	// Associate with processed line
+	line.MovieID = &movie.ID
+	stats.TMDBMatched++
+
+	return nil
+}
+
+// enrichTVShow fetches TV show data from TMDB and creates/updates TVShow association
+func (p *Processor) enrichTVShow(line *models.ProcessedLine, classification classifier.Classification, language string, stats *Statistics) error {
+	// Extract title from tvg-name (remove season/episode info)
+	title := p.cleanTVShowTitle(line.TvgName)
+
+	// Search TMDB
+	result, err := p.tmdbClient.SearchTVShow(title)
+	if err != nil {
+		stats.TMDBNotFound++
+		return err
+	}
+
+	// Get detailed information
+	details, err := p.tmdbClient.GetTVShowDetails(result.ID)
+	if err != nil {
+		stats.TMDBErrors++
+		return err
+	}
+
+	// Create or find existing TV show
+	var tvshow models.TVShow
+	tmdbYear := tmdb.ExtractYear(details.FirstAirDate)
+	genres := tmdb.FormatGenres(details.Genres)
+
+	// Check if TV show already exists with same TMDB ID, season, and episode
+	query := p.db.Where("tmdb_id = ?", details.ID)
+	if classification.Season != nil {
+		query = query.Where("season = ?", *classification.Season)
+	} else {
+		query = query.Where("season IS NULL")
+	}
+	if classification.Episode != nil {
+		query = query.Where("episode = ?", *classification.Episode)
+	} else {
+		query = query.Where("episode IS NULL")
+	}
+
+	err = query.First(&tvshow).Error
+	if err == gorm.ErrRecordNotFound {
+		// Create new TV show entry
+		tvshow = models.TVShow{
+			TMDBID:     details.ID,
+			TMDBTitle:  details.Name,
+			TMDBYear:   tmdbYear,
+			TMDBGenres: &genres,
+			Season:     classification.Season,
+			Episode:    classification.Episode,
+		}
+		if err := p.db.Create(&tvshow).Error; err != nil {
+			stats.TMDBErrors++
+			return fmt.Errorf("failed to create TV show: %w", err)
+		}
+	} else if err != nil {
+		stats.TMDBErrors++
+		return fmt.Errorf("failed to check for existing TV show: %w", err)
+	}
+
+	// Associate with processed line
+	line.TVShowID = &tvshow.ID
+	stats.TMDBMatched++
+
+	return nil
+}
+
+// extractTitleAndYear extracts title and optional year from a string
+func (p *Processor) extractTitleAndYear(title string) (string, *int) {
+	// Look for year in parentheses like "Movie Title (2024)"
+	if strings.Contains(title, "(") {
+		parts := strings.Split(title, "(")
+		cleanTitle := strings.TrimSpace(parts[0])
+
+		// Try to extract year
+		for i := 1; i < len(parts); i++ {
+			if strings.Contains(parts[i], ")") {
+				yearStr := strings.TrimSuffix(parts[i], ")")
+				var year int
+				if _, err := fmt.Sscanf(yearStr, "%d", &year); err == nil && year >= 1900 && year <= 2100 {
+					return cleanTitle, &year
+				}
+			}
+		}
+		return cleanTitle, nil
+	}
+
+	return strings.TrimSpace(title), nil
+}
+
+// cleanTVShowTitle removes season/episode markers and quality tags from title
+func (p *Processor) cleanTVShowTitle(title string) string {
+	// Remove common patterns like "S01 E01", "S01E01", quality tags, etc.
+	patterns := []string{
+		`\s+S\d{2}\s*E\d{2}`,                                 // S01 E01
+		`\s+S\d{2}E\d{2}`,                                    // S01E01
+		`\s+\d{1,2}x\d{1,2}`,                                 // 1x01
+		`\s+\(\d{4}\)`,                                       // (2024)
+		`\s+\(.*?(HD|SD|4K|1080p|720p|480p).*?\)`,            // Quality tags
+		`\s+(HD|FHD|UHD|4K|1080p|720p|480p|SD|SDTV|HDTV).*$`, // Quality suffixes
+		`\s+\(MULTI\)`,                                       // Language tags
+		`\s+\(VOSTFR\)`,
+		`\s+\(VF\)`,
+	}
+
+	cleanTitle := title
+	for _, pattern := range patterns {
+		re := regexp.MustCompile(pattern)
+		cleanTitle = re.ReplaceAllString(cleanTitle, "")
+	}
+
+	return strings.TrimSpace(cleanTitle)
 }
 
 // saveBatch saves a batch of processed lines to the database

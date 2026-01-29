@@ -39,6 +39,12 @@ logging:
 api:
   port: 8080
 
+# TMDB integration for metadata enrichment
+tmdb:
+  enabled: true
+  api_key: your_tmdb_api_key_here  # Get from https://www.themoviedb.org/settings/api
+  language: en-US  # Language for TMDB metadata (e.g., en-US, fr-FR, es-ES)
+
 # Radarr integration (optional)
 radarr:
   enabled: false
