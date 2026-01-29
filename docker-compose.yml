@@ -1,0 +1,118 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: stalkeer
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      # - ./data/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # stalkeer:
+  #   build: .
+  #   ports:
+  #     - "8080:8080"
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+  #   volumes:
+  #     - ./config.yml:/root/config.yml
+  #     - ./m3u_playlist:/root/m3u_playlist
+  #     - ./torrents:/root/torrents
+  #   environment:
+  #     - CONFIG_PATH=/root/config.yml
+  #   command: ["sh", "-c", "sleep 10 && ./stalkeer -migrate && ./stalkeer"]
+  #   restart: unless-stopped
+
+  # directdownload:
+  #   build: .
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+  #   volumes:
+  #     - ./config.yml:/root/config.yml
+  #     - ./downloads:/root/downloads
+  #     - ./temp:/root/temp
+  #   environment:
+  #     - CONFIG_PATH=/root/config.yml
+  #   command: ["./stalkeer", "directdownload"]
+  #   restart: unless-stopped
+
+  # DEVELOPMENT purpose only
+  ## Optional web server to serve as streaming server for testing
+  web:
+    image: nginx:alpine
+    ports:
+      - "8008:80"
+    volumes:
+      - ./webserver/nginx.conf:/etc/nginx/conf.d/default.conf
+      - ./webserver/html:/usr/share/nginx/html
+    restart: unless-stopped
+
+  # DEVELOPMENT purpose only
+  ## Optional Sonarr/Radarr/Prowlarr services for managing downloads for testing
+  prowlarr:
+    image: lscr.io/linuxserver/prowlarr:latest
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Etc/UTC
+    volumes:
+      - ./data/prowlarr:/config
+    ports:
+      - 9696:9696
+    restart: unless-stopped
+
+  sonarr:
+    image: lscr.io/linuxserver/sonarr:latest
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Etc/UTC
+    volumes:
+      - ./data/sonarr:/config
+      - ./data/downloads:/downloads
+    ports:
+      - 8989:8989
+    restart: unless-stopped
+
+  radarr:
+    image: lscr.io/linuxserver/radarr:latest
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Etc/UTC
+    volumes:
+      - ./data/radarr:/config
+      - ./data/downloads:/downloads
+    ports:
+      - 7878:7878
+    restart: unless-stopped
+
+  qbittorrent:
+    image: lscr.io/linuxserver/qbittorrent:latest
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Etc/UTC
+      - WEBUI_PORT=8080
+    volumes:
+      - ./data/qbittorrent:/config
+      - ./data/downloads:/downloads
+    ports:
+      - 8080:8080
+      - 6881:6881
+      - 6881:6881/udp
+    restart: unless-stopped
+
+volumes:
+  postgres_data:

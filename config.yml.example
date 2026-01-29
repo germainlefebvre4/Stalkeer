@@ -1,0 +1,37 @@
+# Stalkeer Configuration Example
+# Copy this file to config.yml and adjust values as needed
+
+database:
+  host: localhost
+  port: 5432
+  user: stalkeer
+  password: your_password_here
+  dbname: stalkeer
+  sslmode: disable
+
+m3u:
+  file_path: /path/to/playlist.m3u
+  update_interval: 3600  # seconds
+
+filters:
+  - name: movies_only
+    include_patterns:
+      - "VOD - Movies"
+      - "Movies HD"
+    exclude_patterns:
+      - "Adult"
+      - "XXX"
+  
+  - name: tv_shows
+    include_patterns:
+      - "TV Shows"
+      - "Series"
+    exclude_patterns:
+      - "Sports"
+
+logging:
+  level: info  # debug, info, warn, error
+  format: json  # json or text
+
+api:
+  port: 8080

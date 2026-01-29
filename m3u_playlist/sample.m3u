@@ -1,0 +1,57 @@
+#EXTM3U
+#EXTINF:-1 tvg-id="" tvg-name="Joker : Folie à deux (2024) SUBT AR" tvg-logo="https://image.tmdb.org/t/p/w600_and_h900_bestv2/35v2EPcbxUEGdeKGfPhNgfIg7br.jpg" group-title="AR:SUBT أفلام مترجمة",Joker : Folie à deux (2024) SUBT AR
+http://localhost:8008/movies/987654321098765/9897654321/sample_FRENCH_720p.mkv
+#EXTINF:-1 tvg-id="" tvg-name="The Goat Life (2024) SUBT AR" tvg-logo="https://image.tmdb.org/t/p/w600_and_h900_bestv2/3rg2zZQToxImy4Tuj5RHoLXECOR.jpg" group-title="AR:SUBT أفلام مترجمة",The Goat Life (2024) SUBT AR
+http://localhost:8008/movies/987654321098765/9897654321/sample_FRENCH_720p.mp4
+#EXTINF:-1 tvg-id="" tvg-name="Kingdom of the Planet of the Apes (2024) SUBT AR" tvg-logo="https://image.tmdb.org/t/p/w600_and_h900_bestv2/2FpXJl3cnU4BvKyAvlWN1Yra3Wk.jpg" group-title="AR:SUBT أفلام مترجمة",Kingdom of the Planet of the Apes (2024) SUBT AR
+http://localhost:8008/movies/987654321098765/9897654321/sample_FRENCH_720p.mp4
+#EXTINF:-1 tvg-id="" tvg-name="فيوريوسا: ملحمة ماد ماكس (2024)" tvg-logo="https://image.tmdb.org/t/p/w600_and_h900_bestv2/sln8KBlJDTE67sSpx7Aiswa5Lti.jpg" group-title="AR:SUBT أفلام مترجمة",فيوريوسا: ملحمة ماد ماكس (2024)
+http://localhost:8008/movies/987654321098765/9897654321/sample_FRENCH_720p.mp4
+#EXTINF:-1 tvg-id="" tvg-name="Hunter with a scalpel S01 E01" tvg-logo="https://image.tmdb.org/t/p/w300/s3ENs0yA3hOmlkhBHe7nKQJ1PfJ.jpg" group-title="Séries K-DRAMA",Hunter with a scalpel S01 E01
+http://localhost:8008/series/987654321098765/9897654321/sample_FRENCH_720p.mkv
+#EXTINF:-1 tvg-id="" tvg-name="Hunter with a scalpel S01 E02" tvg-logo="https://image.tmdb.org/t/p/w300/3CJHbjdHPf9bIslHAhNxFsvDWJg.jpg" group-title="Séries K-DRAMA",Hunter with a scalpel S01 E02
+http://localhost:8008/series/987654321098765/9897654321/sample_FRENCH_720p.mkv
+#EXTINF:-1 tvg-id="" tvg-name="Hunter with a scalpel S01 E03" tvg-logo="https://image.tmdb.org/t/p/w300/b6Fl28F2FoCm9iKGFzas77638ac.jpg" group-title="Séries K-DRAMA",Hunter with a scalpel S01 E03
+http://localhost:8008/series/987654321098765/9897654321/sample_FRENCH_720p.mkv
+#EXTINF:-1 tvg-id="" tvg-name="Hunter with a scalpel S01 E04" tvg-logo="https://image.tmdb.org/t/p/w300/hmJTkCVQ2dTkij3gjyVCiZwFIEe.jpg" group-title="Séries K-DRAMA",Hunter with a scalpel S01 E04
+http://localhost:8008/series/987654321098765/9897654321/sample_FRENCH_720p.mkv
+#EXTINF:-1 tvg-id="" tvg-name="Hunter with a scalpel S01 E05" tvg-logo="https://image.tmdb.org/t/p/w300/bwSY4H72EJ7p36FHWluj4HRaTUW.jpg" group-title="Séries K-DRAMA",Hunter with a scalpel S01 E05
+http://localhost:8008/series/987654321098765/9897654321/sample_FRENCH_720p.mkv
+#EXTINF:-1 tvg-id="" tvg-name="Clifford (FHD VOSTFR)" tvg-logo="https://image.tmdb.org/t/p/w600_and_h900_bestv2/fTQF4IZnY3bd8RM0dMzywJW3ot7.jpg" group-title="FR: FILMS - Disney+",Clifford (FHD VOSTFR)
+http://localhost:8008/movies/987654321098765/9897654321/sample_FRENCH_1080p.mkv
+#EXTINF:-1 tvg-id="" tvg-name="Flora & Ulysse (FHD MULTI)" tvg-logo="https://image.tmdb.org/t/p/w600_and_h900_bestv2/29WInIvja42yO9wLovPrN5dp80F.jpg" group-title="FR: FILMS - Disney+",Flora & Ulysse (FHD MULTI)
+http://localhost:8008/movies/987654321098765/9897654321/sample_FRENCH_1080p.mkv
+#EXTINF:-1 tvg-id="" tvg-name="Raya et le Dernier Dragon (FHD MULTI)" tvg-logo="https://image.tmdb.org/t/p/w600_and_h900_bestv2/qDnumcHRzK9ljWtG5L1zRPhFRJg.jpg" group-title="FR: FILMS - Disney+",Raya et le Dernier Dragon (FHD MULTI)
+http://localhost:8008/movies/987654321098765/9897654321/sample_FRENCH_1080p.mkv
+#EXTINF:-1 tvg-id="" tvg-name="Marraine ou presque (FHD MULTI)" tvg-logo="https://image.tmdb.org/t/p/w600_and_h900_bestv2/3RHBuu2v2DoQ4CWuV70RoI05MX3.jpg" group-title="FR: FILMS - Disney+",Marraine ou presque (FHD MULTI)
+http://localhost:8008/movies/987654321098765/9897654321/sample_FRENCH_1080p.mkv
+#EXTINF:-1 tvg-id="" tvg-name="Avengers (2012) (ES)" tvg-logo="http://atlaspro.to:2052/images/a80d84541be0907540be34f477444597.jpg" group-title="ES:Movies - películas",Avengers (2012) (ES)
+http://localhost:8008/movies/987654321098765/9897654321/sample_FRENCH_360p.mkv
+#EXTINF:-1 tvg-id="" tvg-name="The Avengers (2012)" tvg-logo="http://atlaspro.to:2052/images/a5b3cd0c9c8ba8408b168692cbcbc017.jpg" group-title="ES:Movies - películas",The Avengers (2012)
+http://localhost:8008/movies/987654321098765/9897654321/sample_FRENCH_720p.mp4
+#EXTINF:-1 tvg-id="" tvg-name="The Avengers Age of Ultron (2015)" tvg-logo="http://atlaspro.to:2052/images/e475132da235cfa2b8b9e62752efab11.jpg" group-title="ES:Movies - películas",The Avengers Age of Ultron (2015)
+http://localhost:8008/movies/987654321098765/9897654321/sample_FRENCH_1080p.mp4
+#EXTINF:-1 tvg-id="" tvg-name="Band of Brothers : L’Enfer du Pacifique S01 E01" tvg-logo="https://image.tmdb.org/t/p/w600_and_h900_bestv2/tmjca0r0Wam21385kHDjudhDgIW.jpg" group-title="Séries HBO MAX",Band of Brothers : L’Enfer du Pacifique S01 E01
+http://localhost:8008/series/987654321098765/9897654321/sample_FRENCH_720p.mkv
+#EXTINF:-1 tvg-id="" tvg-name="Band of Brothers : L’Enfer du Pacifique S01 E02" tvg-logo="https://image.tmdb.org/t/p/w600_and_h900_bestv2/tmjca0r0Wam21385kHDjudhDgIW.jpg" group-title="Séries HBO MAX",Band of Brothers : L’Enfer du Pacifique S01 E02
+http://localhost:8008/series/987654321098765/9897654321/sample_FRENCH_720p.mkv
+#EXTINF:-1 tvg-id="" tvg-name="Band of Brothers : L’Enfer du Pacifique S01 E03" tvg-logo="https://image.tmdb.org/t/p/w600_and_h900_bestv2/tmjca0r0Wam21385kHDjudhDgIW.jpg" group-title="Séries HBO MAX",Band of Brothers : L’Enfer du Pacifique S01 E03
+http://localhost:8008/series/987654321098765/9897654321/sample_FRENCH_720p.mkv
+#EXTINF:-1 tvg-id="" tvg-name="Band of Brothers : L’Enfer du Pacifique S01 E04" tvg-logo="https://image.tmdb.org/t/p/w600_and_h900_bestv2/tmjca0r0Wam21385kHDjudhDgIW.jpg" group-title="Séries HBO MAX",Band of Brothers : L’Enfer du Pacifique S01 E04
+http://localhost:8008/series/987654321098765/9897654321/sample_FRENCH_720p.mkv
+#EXTINF:-1 tvg-id="" tvg-name="Band of Brothers : L’Enfer du Pacifique S01 E05" tvg-logo="https://image.tmdb.org/t/p/w600_and_h900_bestv2/tmjca0r0Wam21385kHDjudhDgIW.jpg" group-title="Séries HBO MAX",Band of Brothers : L’Enfer du Pacifique S01 E05
+http://localhost:8008/series/987654321098765/9897654321/sample_FRENCH_720p.mkv
+#EXTINF:-1 tvg-id="" tvg-name="Malcolm S01 E01" tvg-logo="http://ndasat.net:2052/images/cba7a7a0c662eafb6b5b0be5750e101b.jpg" group-title="Séries DISNEY PLUS",Malcolm S01 E01
+http://localhost:8008/series/987654321098765/9897654321/sample_FRENCH_360p.mkv
+#EXTINF:-1 tvg-id="" tvg-name="Sons of Anarchy S01 E01" tvg-logo="http://atlaspro.to:2052/images/4d9c7d3c79c79382b2f65a208f4ce442.jpg" group-title="Séries DISNEY PLUS",Sons of Anarchy S01 E01
+http://localhost:8008/series/987654321098765/9897654321/sample_FRENCH_360p.mkv
+#EXTINF:-1 tvg-id="" tvg-name="Cube : Hypercube" tvg-logo="https://image.tmdb.org/t/p/w600_and_h900_bestv2/lq75m1l5AIPEUXZ8IDRiQglHFiw.jpg" group-title="FR: FILMS DISNEY PLUS -  Science-Fiction",Cube : Hypercube
+http://localhost:8008/movies/987654321098765/9897654321/sample_FRENCH_360p.mkv
+#EXTINF:-1 tvg-id="" tvg-name="Last Action Hero (FHD MULTI)" tvg-logo="https://image.tmdb.org/t/p/w600_and_h900_bestv2/qRIB09pAqTTlKR2GMmTmkTOc4sG.jpg" group-title="FR: FILMS DISNEY - Action,  Aventure",Last Action Hero (FHD MULTI)
+http://localhost:8008/movies/987654321098765/9897654321/sample_FRENCH_1080p.mkv
+#EXTINF:-1 tvg-id="" tvg-name="Last Action Hero" tvg-logo="https://image.tmdb.org/t/p/w600_and_h900_bestv2/qRIB09pAqTTlKR2GMmTmkTOc4sG.jpg" group-title="FR: FILMS DISNEY - Action,  Aventure",Last Action Hero
+http://localhost:8008/movies/987654321098765/9897654321/sample_FRENCH_360p.mkv
+#EXTINF:-1 tvg-id="" tvg-name="Last Action Hero (SD)" tvg-logo="https://image.tmdb.org/t/p/w600_and_h900_bestv2/qRIB09pAqTTlKR2GMmTmkTOc4sG.jpg" group-title="FR: FILMS DISNEY - Action,  Aventure",Last Action Hero (SD)
+http://localhost:8008/movies/123456789012345/1234567890/sample_FRENCH_360p.mkv
+#EXTINF:-1 tvg-id="" tvg-name="Last Action Hero (SDTV)" tvg-logo="https://image.tmdb.org/t/p/w600_and_h900_bestv2/qRIB09pAqTTlKR2GMmTmkTOc4sG.jpg" group-title="FR: FILMS DISNEY - Action,  Aventure",Last Action Hero (SDTV)
+http://localhost:8008/movies/987654321098765/9897654321/sample_FRENCH_360p_duplicate.mkv

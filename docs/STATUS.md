@@ -1,0 +1,376 @@
+# Stalkeer Backend Implementation Status
+
+## Overview
+
+This document tracks the implementation status of the Stalkeer backend based on the project tasks.
+
+## Completed Tasks
+
+### Task 1.1: Project Structure & Build Setup ✅
+
+**Status**: Complete  
+**Date Completed**: January 29, 2026
+
+#### Deliverables
+
+- ✅ Go module initialized with required dependencies
+- ✅ Project directory structure established:
+  - `cmd/main.go` - Application entry point with Cobra CLI
+  - `internal/models/` - GORM data models
+  - `internal/config/` - Viper configuration management
+  - `internal/database/` - Database connection and migrations
+  - `internal/api/` - Gin REST API server
+  - `internal/parser/` - M3U playlist parser (skeleton)
+  - `internal/testing/` - Test helpers and fixtures
+- ✅ `.gitignore` configured for Go standards and project artifacts
+- ✅ Build system configured to output to `bin/` directory
+- ✅ Makefile for common development tasks
+
+#### Dependencies Installed
+
+- `gorm.io/gorm` v1.25.5 - ORM
+- `gorm.io/driver/postgres` v1.5.4 - PostgreSQL driver
+- `gorm.io/driver/sqlite` v1.6.0 - SQLite driver (for testing)
+- `github.com/gin-gonic/gin` v1.9.1 - REST API framework
+- `github.com/spf13/cobra` v1.8.0 - CLI framework
+- `github.com/spf13/viper` v1.18.2 - Configuration management
+- `github.com/lib/pq` v1.10.9 - PostgreSQL driver
+
+#### Build Verification
+
+```bash
+$ go build -o bin/stalkeer cmd/main.go
+$ ./bin/stalkeer version
+Stalkeer v0.1.0
+```
+
+---
+
+### Task 1.2: Configuration Management ✅
+
+**Status**: Complete  
+**Date Completed**: January 29, 2026
+
+#### Deliverables
+
+- ✅ Viper-based configuration in `internal/config/config.go`
+- ✅ Configuration struct with all required fields:
+  - Database settings (host, port, user, password, dbname, sslmode)
+  - M3U settings (file_path, update_interval)
+  - Filter definitions (name, include/exclude patterns)
+  - Logging settings (level, format)
+  - API settings (port)
+- ✅ Environment variable overrides with `STALKEER_` prefix
+- ✅ Explicit environment variable binding for nested config
+- ✅ Configuration validation on startup
+- ✅ Default values for optional fields
+- ✅ Example configuration file (`config.yml.example`)
+- ✅ DATABASE_URL parsing support
+- ✅ Configuration reload capability
+
+#### Test Coverage
+
+- ✅ TestLoad_WithDefaults
+- ✅ TestValidate_InvalidLogLevel
+- **Coverage**: 64.7% of config package
+
+#### Environment Variables
+
+```bash
+STALKEER_DATABASE_HOST
+STALKEER_DATABASE_PORT
+STALKEER_DATABASE_USER
+STALKEER_DATABASE_PASSWORD
+STALKEER_DATABASE_DBNAME
+STALKEER_M3U_FILE_PATH
+STALKEER_LOGGING_LEVEL
+STALKEER_API_PORT
+DATABASE_URL  # Alternative: postgres://user:password@host:port/dbname
+```
+
+---
+
+### Task 1.3: Database Schema & GORM Setup ✅
+
+**Status**: Complete  
+**Date Completed**: January 29, 2026
+
+#### Deliverables
+
+- ✅ GORM models implemented:
+  - `PlaylistItem` - Media items from M3U playlist
+  - `FilterConfig` - Filter configurations
+  - `ProcessingLog` - Processing operation logs
+- ✅ Database package with:
+  - Connection initialization
+  - Connection pool configuration (10 idle, 100 max, 1h lifetime)
+  - Auto-migration support
+  - Health check function
+  - Graceful close
+- ✅ Proper indexes:
+  - Composite index on `(group_title, tvg_name)`
+  - Single index on `content_type`
+  - Single index on `created_at`
+  - Single index on `is_runtime` for FilterConfig
+  - Unique index on `name` for FilterConfig
+- ✅ Custom table names
+- ✅ JSON tags for API serialization
+
+#### Schema Details
+
+**PlaylistItem**
+- ID (primary key)
+- TvgName, GroupTitle (indexed)
+- TvgLogo, StreamURL
+- ContentType (movie/tvshow, indexed)
+- Season, Episode (nullable)
+- Resolution
+- CreatedAt, UpdatedAt (timestamped)
+- OverrideBy, OverrideAt (nullable)
+
+**FilterConfig**
+- ID (primary key)
+- Name (unique)
+- GroupTitle, TvgName (JSONB)
+- IsRuntime (indexed)
+- CreatedAt, UpdatedAt
+
+**ProcessingLog**
+- ID (primary key)
+- Action, ItemCount
+- Status (pending/running/completed/failed)
+- StartedAt, CompletedAt
+- ErrorMessage (nullable)
+
+#### Test Coverage
+
+- ✅ All model table name tests
+- ✅ Constant validation tests
+- ✅ Model creation tests
+- **Coverage**: 100% of models package
+
+---
+
+### Task 1.4: Unit Test Foundation ✅
+
+**Status**: Complete  
+**Date Completed**: January 29, 2026
+
+#### Deliverables
+
+- ✅ Test helpers in `internal/testing/helpers.go`:
+  - `TestDB(t)` - In-memory SQLite database setup
+  - `CleanupDB(t, db)` - Table cleanup between tests
+  - `CreatePlaylistItem(db, ...)` - Fixture builder
+  - `CreateFilterConfig(db, ...)` - Fixture builder
+  - `CreateProcessingLog(db, ...)` - Fixture builder
+- ✅ Assertion helpers:
+  - `AssertNoError(t, err, msg)`
+  - `AssertEqual(t, expected, actual, msg)`
+  - `AssertNotNil(t, value, msg)`
+  - `AssertCount(t, db, model, count, msg)`
+- ✅ Fixture modifiers:
+  - `WithTVShow()` - Configure as TV show
+  - `WithGroupTitle(title)` - Set group title
+  - `WithStreamURL(url)` - Set stream URL
+  - `WithRuntimeFilter()` - Mark filter as runtime
+  - `WithStatus(status)` - Set processing status
+  - `WithError(msg)` - Set error message
+- ✅ Table-driven test utilities:
+  - `TableTest[T]` - Generic test case struct
+  - `RunTableTests(...)` - Test runner
+- ✅ Testing documentation (`docs/TESTING.md`)
+
+#### Test Results
+
+```bash
+$ go test ./...
+ok      github.com/glefebvre/stalkeer/internal/config   0.016s
+ok      github.com/glefebvre/stalkeer/internal/models   0.009s
+
+$ go test -cover ./...
+internal/config   coverage: 64.7% of statements
+internal/models   coverage: 100.0% of statements
+```
+
+---
+
+### Task 1.5: CI/CD & Documentation ✅
+
+**Status**: Complete  
+**Date Completed**: January 29, 2026
+
+#### Deliverables
+
+- ✅ GitHub Actions workflow (`.github/workflows/ci.yml`):
+  - Go 1.21 setup
+  - PostgreSQL service for integration tests
+  - Dependency caching
+  - Test execution with race detection
+  - Code coverage reporting to Codecov
+  - Build verification
+  - golangci-lint integration
+- ✅ Documentation:
+  - `README.md` - Comprehensive project overview
+  - `docs/DEVELOPMENT.md` - Development setup guide
+  - `docs/TESTING.md` - Testing guidelines
+- ✅ Makefile with common tasks:
+  - build, test, coverage, clean
+  - run, lint, fmt
+  - deps, verify
+  - docker-up, docker-down, docker-logs
+  - help
+
+#### CI Pipeline
+
+The CI pipeline runs on every push and pull request:
+
+1. **Test Job**: Runs tests with PostgreSQL
+2. **Build Job**: Verifies binary compilation
+3. **Lint Job**: Runs golangci-lint
+
+---
+
+## Next Steps
+
+### Phase 2: M3U Parsing & Data Import
+
+**Tasks Remaining**:
+- Task 2.1: M3U Parser Implementation
+- Task 2.2: Content Type Detection
+- Task 2.3: Bulk Import & Update Logic
+- Task 2.4: Parser Unit Tests
+
+### Phase 3: REST API Development
+
+**Tasks Remaining**:
+- Task 3.1: Playlist Item Endpoints
+- Task 3.2: Filter Management Endpoints
+- Task 3.3: Processing Log Endpoints
+- Task 3.4: API Integration Tests
+
+### Phase 4: Radarr/Sonarr Integration
+
+**Tasks Remaining**:
+- Task 4.1: Radarr API Client
+- Task 4.2: Sonarr API Client
+- Task 4.3: Missing Item Detection
+- Task 4.4: Integration Tests
+
+### Phase 5: Download Manager
+
+**Tasks Remaining**:
+- Task 5.1: HTTP Download Client
+- Task 5.2: Download Queue Management
+- Task 5.3: Progress Tracking
+- Task 5.4: Error Handling & Retry Logic
+
+---
+
+## Current Metrics
+
+### Code Coverage
+
+| Package | Coverage | Status |
+|---------|----------|--------|
+| internal/config | 64.7% | 🟡 Good |
+| internal/models | 100% | 🟢 Excellent |
+| internal/api | 0% | 🔴 Not Tested |
+| internal/database | 0% | 🔴 Not Tested |
+| internal/parser | 0% | 🔴 Not Tested |
+| **Overall** | ~25% | 🟡 Foundation |
+
+### Build Status
+
+- ✅ Go modules verified
+- ✅ Binary builds successfully
+- ✅ All tests passing
+- ✅ Zero build warnings
+- ✅ Linter ready (needs configuration)
+
+### Project Health
+
+- **Lines of Code**: ~1,500
+- **Test Files**: 2
+- **Test Cases**: 8
+- **Dependencies**: 6 direct
+- **Documentation**: Comprehensive
+
+---
+
+## Usage Examples
+
+### Configuration
+
+```bash
+# Using config file
+cp config.yml.example config.yml
+# Edit config.yml
+./bin/stalkeer
+
+# Using environment variables
+export STALKEER_DATABASE_USER=stalkeer
+export STALKEER_DATABASE_PASSWORD=secret
+export STALKEER_DATABASE_DBNAME=stalkeer
+export STALKEER_M3U_FILE_PATH=/path/to/playlist.m3u
+./bin/stalkeer
+
+# Using DATABASE_URL
+export DATABASE_URL="postgres://user:pass@localhost:5432/stalkeer"
+export STALKEER_M3U_FILE_PATH=/path/to/playlist.m3u
+./bin/stalkeer
+```
+
+### Development
+
+```bash
+# Quick start
+make deps
+make build
+make test
+
+# Development workflow
+make fmt           # Format code
+make lint          # Run linters
+make test          # Run tests
+make coverage      # Generate coverage report
+make run           # Run application
+
+# Docker
+make docker-up     # Start PostgreSQL
+make docker-logs   # View logs
+make docker-down   # Stop services
+```
+
+---
+
+## Notes
+
+### Design Decisions
+
+1. **GORM over SQL**: Chosen for rapid development and type safety
+2. **Gin over stdlib**: Selected for middleware ecosystem and performance
+3. **Viper for config**: Provides flexibility with files + env vars
+4. **SQLite for tests**: Fast in-memory testing without external dependencies
+5. **Table-driven tests**: Enables comprehensive testing with minimal code
+
+### Known Limitations
+
+1. Parser not yet implemented (skeleton only)
+2. API handlers return mock data
+3. No integration tests with real PostgreSQL yet
+4. Linter configuration pending
+
+### Future Enhancements
+
+1. Add swagger/OpenAPI documentation
+2. Implement graceful shutdown
+3. Add metrics and observability
+4. Consider adding cache layer
+5. Implement request validation middleware
+
+---
+
+**Last Updated**: January 29, 2026  
+**Version**: 0.1.0  
+**Status**: Phase 1 Complete ✅
