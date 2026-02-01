@@ -12,6 +12,7 @@ import (
 
 	"github.com/glefebvre/stalkeer/internal/database"
 	"github.com/glefebvre/stalkeer/internal/errors"
+	"github.com/glefebvre/stalkeer/internal/logger"
 	"github.com/glefebvre/stalkeer/internal/models"
 	"github.com/glefebvre/stalkeer/internal/retry"
 	"github.com/google/uuid"
@@ -41,8 +42,10 @@ type DownloadResult struct {
 
 // Downloader handles media file downloads
 type Downloader struct {
-	httpClient  *http.Client
-	retryConfig retry.Config
+	httpClient    *http.Client
+	retryConfig   retry.Config
+	stateManager  *StateManager
+	resumeSupport *ResumeSupport
 }
 
 // New creates a new Downloader instance
@@ -55,6 +58,9 @@ func New(timeout time.Duration, retryAttempts int) *Downloader {
 		retryAttempts = 3
 	}
 
+	stateManager := NewStateManager(DefaultStateManagerConfig())
+	resumeSupport := NewResumeSupport(stateManager)
+
 	return &Downloader{
 		httpClient: &http.Client{
 			Timeout: timeout,
@@ -66,12 +72,20 @@ func New(timeout time.Duration, retryAttempts int) *Downloader {
 			BackoffMultiplier: 2.0,
 			JitterFraction:    0.1,
 		},
+		stateManager:  stateManager,
+		resumeSupport: resumeSupport,
 	}
+}
+
+// GetStateManager returns the state manager instance
+func (d *Downloader) GetStateManager() *StateManager {
+	return d.stateManager
 }
 
 // Download downloads a file from the given URL to the destination path
 func (d *Downloader) Download(ctx context.Context, opts DownloadOptions) (*DownloadResult, error) {
 	startTime := time.Now()
+	log := logger.AppLogger()
 
 	// Validate inputs
 	if opts.URL == "" {
@@ -81,10 +95,44 @@ func (d *Downloader) Download(ctx context.Context, opts DownloadOptions) (*Downl
 		return nil, errors.ValidationError("base destination path cannot be empty")
 	}
 
-	// Update state to downloading if ProcessedLineID is provided
+	// Create or get DownloadInfo record and acquire lock
+	var downloadInfoID uint
 	if opts.ProcessedLineID > 0 {
-		if err := d.updateDownloadState(opts.ProcessedLineID, models.StateDownloading, nil); err != nil {
+		// Create or get DownloadInfo record
+		dlInfo, err := d.getOrCreateDownloadInfo(ctx, opts.ProcessedLineID, opts.URL)
+		if err != nil {
 			return nil, err
+		}
+		downloadInfoID = dlInfo.ID
+
+		// Acquire lock to prevent concurrent downloads
+		if err := d.stateManager.AcquireLock(ctx, downloadInfoID); err != nil {
+			log.WithFields(map[string]interface{}{
+				"download_id": downloadInfoID,
+				"error":       err,
+			}).Warn("failed to acquire download lock, skipping")
+			return nil, errors.ValidationError("download is locked by another process")
+		}
+		defer func() {
+			// Always release lock on exit (success or failure)
+			if err := d.stateManager.ReleaseLock(ctx, downloadInfoID); err != nil {
+				log.WithFields(map[string]interface{}{
+					"download_id": downloadInfoID,
+					"error":       err,
+				}).Error("failed to release download lock", err)
+			}
+		}()
+
+		// Update state to downloading
+		if err := d.stateManager.UpdateState(ctx, downloadInfoID, models.DownloadStatusDownloading, nil); err != nil {
+			return nil, err
+		}
+
+		// Also update ProcessedLine state for backward compatibility
+		if err := d.updateProcessedLineState(opts.ProcessedLineID, models.StateDownloading); err != nil {
+			log.WithFields(map[string]interface{}{
+				"error": err,
+			}).Warn("failed to update processed line state")
 		}
 	}
 
@@ -105,8 +153,33 @@ func (d *Downloader) Download(ctx context.Context, opts DownloadOptions) (*Downl
 	// Perform download with retry
 	var result *DownloadResult
 	var contentType string
+	var lastPersistedBytes int64
+	var lastPersistTime time.Time = time.Now()
+
 	err := retry.Do(ctx, d.retryConfig, func() error {
-		res, ct, err := d.downloadFile(ctx, opts.URL, tempPath, opts.OnProgress)
+		res, ct, err := d.downloadFile(ctx, opts.URL, tempPath, func(downloaded, total int64) {
+			// Call user's progress callback
+			if opts.OnProgress != nil {
+				opts.OnProgress(downloaded, total)
+			}
+
+			// Persist progress at intervals if we have a download info record
+			if downloadInfoID > 0 {
+				bytesSinceLastPersist := downloaded - lastPersistedBytes
+				timeSinceLastPersist := time.Since(lastPersistTime)
+
+				if d.stateManager.ShouldPersistProgress(bytesSinceLastPersist, timeSinceLastPersist) {
+					if err := d.stateManager.UpdateProgress(ctx, downloadInfoID, downloaded, total); err != nil {
+						log.WithFields(map[string]interface{}{
+							"download_id": downloadInfoID,
+							"error":       err,
+						}).Warn("failed to persist download progress")
+					}
+					lastPersistedBytes = downloaded
+					lastPersistTime = time.Now()
+				}
+			}
+		})
 		if err != nil {
 			return err
 		}
@@ -116,9 +189,21 @@ func (d *Downloader) Download(ctx context.Context, opts DownloadOptions) (*Downl
 	}, errors.IsRetryable)
 
 	if err != nil {
-		if opts.ProcessedLineID > 0 {
+		// Update download info on failure
+		if downloadInfoID > 0 {
 			errMsg := err.Error()
-			d.updateDownloadState(opts.ProcessedLineID, models.StateFailed, &errMsg)
+			if updateErr := d.stateManager.UpdateState(ctx, downloadInfoID, models.DownloadStatusFailed, &errMsg); updateErr != nil {
+				log.WithFields(map[string]interface{}{
+					"error": updateErr,
+				}).Error("failed to update download state to failed", updateErr)
+			}
+
+			// Update ProcessedLine state for backward compatibility
+			if updateErr := d.updateProcessedLineState(opts.ProcessedLineID, models.StateFailed); updateErr != nil {
+				log.WithFields(map[string]interface{}{
+					"error": updateErr,
+				}).Warn("failed to update processed line state to failed")
+			}
 		}
 		return nil, errors.ExternalServiceError("download", "failed to download file", err)
 	}
@@ -137,18 +222,38 @@ func (d *Downloader) Download(ctx context.Context, opts DownloadOptions) (*Downl
 	}
 
 	// Update state to organizing
-	if opts.ProcessedLineID > 0 {
-		if err := d.updateDownloadState(opts.ProcessedLineID, models.StateOrganizing, nil); err != nil {
-			return nil, err
+	if downloadInfoID > 0 {
+		if err := d.stateManager.UpdateState(ctx, downloadInfoID, models.DownloadStatusDownloading, nil); err != nil {
+			log.WithFields(map[string]interface{}{
+				"error": err,
+			}).Warn("failed to update state to organizing")
+		}
+
+		// Update ProcessedLine state for backward compatibility
+		if err := d.updateProcessedLineState(opts.ProcessedLineID, models.StateOrganizing); err != nil {
+			log.WithFields(map[string]interface{}{
+				"error": err,
+			}).Warn("failed to update processed line state to organizing")
 		}
 	}
 
 	// Move file to final destination
 	moveStart := time.Now()
 	if err := moveFile(tempPath, finalDestPath); err != nil {
-		if opts.ProcessedLineID > 0 {
+		if downloadInfoID > 0 {
 			errMsg := err.Error()
-			d.updateDownloadState(opts.ProcessedLineID, models.StateFailed, &errMsg)
+			if updateErr := d.stateManager.UpdateState(ctx, downloadInfoID, models.DownloadStatusFailed, &errMsg); updateErr != nil {
+				log.WithFields(map[string]interface{}{
+					"error": updateErr,
+				}).Error("failed to update download state to failed", updateErr)
+			}
+
+			// Update ProcessedLine state for backward compatibility
+			if updateErr := d.updateProcessedLineState(opts.ProcessedLineID, models.StateFailed); updateErr != nil {
+				log.WithFields(map[string]interface{}{
+					"error": updateErr,
+				}).Warn("failed to update processed line state to failed")
+			}
 		}
 		return nil, errors.Wrap(err, errors.CodeInternal, "failed to move file to destination")
 	}
@@ -163,10 +268,20 @@ func (d *Downloader) Download(ctx context.Context, opts DownloadOptions) (*Downl
 	result.Duration = time.Since(startTime)
 	result.MoveDuration = time.Since(moveStart)
 
-	// Update state to downloaded
-	if opts.ProcessedLineID > 0 {
-		if err := d.updateDownloadState(opts.ProcessedLineID, models.StateDownloaded, nil); err != nil {
-			return nil, err
+	// Update state to completed
+	if downloadInfoID > 0 {
+		// Update download info with final details
+		if err := d.updateDownloadInfoCompleted(ctx, downloadInfoID, finalDestPath, result.FileSize); err != nil {
+			log.WithFields(map[string]interface{}{
+				"error": err,
+			}).Error("failed to update download info to completed", err)
+		}
+
+		// Update ProcessedLine state for backward compatibility
+		if err := d.updateProcessedLineState(opts.ProcessedLineID, models.StateDownloaded); err != nil {
+			log.WithFields(map[string]interface{}{
+				"error": err,
+			}).Warn("failed to update processed line state to downloaded")
 		}
 	}
 
@@ -175,9 +290,29 @@ func (d *Downloader) Download(ctx context.Context, opts DownloadOptions) (*Downl
 
 // downloadFile performs the actual HTTP download
 func (d *Downloader) downloadFile(ctx context.Context, url, destPath string, onProgress func(int64, int64)) (*DownloadResult, string, error) {
-	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
-	if err != nil {
-		return nil, "", fmt.Errorf("failed to create request: %w", err)
+	return d.downloadFileWithResume(ctx, url, destPath, 0, onProgress)
+}
+
+// downloadFileWithResume performs HTTP download with optional resume support
+func (d *Downloader) downloadFileWithResume(ctx context.Context, url, destPath string, startByte int64, onProgress func(int64, int64)) (*DownloadResult, string, error) {
+	var req *http.Request
+	var err error
+
+	// Create request with optional Range header
+	if startByte > 0 {
+		req, err = d.resumeSupport.BuildResumeRequest(ctx, url, startByte)
+		if err != nil {
+			return nil, "", err
+		}
+		logger.AppLogger().WithFields(map[string]interface{}{
+			"url":        url,
+			"start_byte": startByte,
+		}).Debug("attempting to resume download")
+	} else {
+		req, err = http.NewRequestWithContext(ctx, "GET", url, nil)
+		if err != nil {
+			return nil, "", fmt.Errorf("failed to create request: %w", err)
+		}
 	}
 
 	resp, err := d.httpClient.Do(req)
@@ -186,14 +321,33 @@ func (d *Downloader) downloadFile(ctx context.Context, url, destPath string, onP
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
-		return nil, "", fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+	// Handle resume response if we requested a range
+	if startByte > 0 {
+		if err := d.resumeSupport.HandleResumeResponse(resp, startByte); err != nil {
+			// If resume not supported, we'll restart from beginning
+			if errors.IsValidationError(err) {
+				logger.AppLogger().Warn("resume not supported, restarting download from beginning")
+				return d.downloadFileWithResume(ctx, url, destPath, 0, onProgress)
+			}
+			return nil, "", err
+		}
+	} else {
+		// Normal download - check status
+		if resp.StatusCode != http.StatusOK {
+			return nil, "", fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+		}
 	}
 
 	// Get content type for extension detection
 	contentType := resp.Header.Get("Content-Type")
 
-	out, err := os.Create(destPath)
+	// Open file for writing (append mode if resuming)
+	var out *os.File
+	if startByte > 0 {
+		out, err = os.OpenFile(destPath, os.O_WRONLY|os.O_APPEND, 0644)
+	} else {
+		out, err = os.Create(destPath)
+	}
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to create file: %w", err)
 	}
@@ -202,13 +356,17 @@ func (d *Downloader) downloadFile(ctx context.Context, url, destPath string, onP
 	// Download with progress tracking
 	var bytesRead int64
 	contentLength := resp.ContentLength
+	if startByte > 0 {
+		// For resumed downloads, ContentLength is remaining bytes
+		contentLength += startByte
+	}
 
 	if onProgress != nil && contentLength > 0 {
 		// Use TeeReader to track progress
 		reader := &progressReader{
 			reader:     resp.Body,
 			total:      contentLength,
-			downloaded: 0,
+			downloaded: startByte, // Start from existing progress
 			onProgress: onProgress,
 		}
 		bytesRead, err = io.Copy(out, reader)
@@ -220,13 +378,109 @@ func (d *Downloader) downloadFile(ctx context.Context, url, destPath string, onP
 		return nil, "", fmt.Errorf("failed to write file: %w", err)
 	}
 
+	totalBytes := startByte + bytesRead
+
 	return &DownloadResult{
-		FileSize:  bytesRead,
-		BytesRead: bytesRead,
+		FileSize:  totalBytes,
+		BytesRead: totalBytes,
 	}, contentType, nil
 }
 
-// updateDownloadState updates the download state in the database
+// getOrCreateDownloadInfo gets or creates a DownloadInfo record for a ProcessedLine
+func (d *Downloader) getOrCreateDownloadInfo(ctx context.Context, processedLineID uint, url string) (*models.DownloadInfo, error) {
+	db := database.Get()
+	if db == nil {
+		return nil, errors.New(errors.CodeInternal, "database not initialized")
+	}
+
+	// Get ProcessedLine
+	var processedLine models.ProcessedLine
+	if err := db.First(&processedLine, processedLineID).Error; err != nil {
+		return nil, errors.DatabaseError("failed to fetch processed line", err)
+	}
+
+	// Check if DownloadInfo already exists
+	if processedLine.DownloadInfoID != nil {
+		var downloadInfo models.DownloadInfo
+		if err := db.First(&downloadInfo, *processedLine.DownloadInfoID).Error; err != nil {
+			return nil, errors.DatabaseError("failed to fetch download info", err)
+		}
+		return &downloadInfo, nil
+	}
+
+	// Create new DownloadInfo
+	downloadInfo := &models.DownloadInfo{
+		Status:    string(models.DownloadStatusPending),
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+	}
+
+	if err := db.Create(downloadInfo).Error; err != nil {
+		return nil, errors.DatabaseError("failed to create download info", err)
+	}
+
+	// Link to ProcessedLine
+	downloadInfoID := downloadInfo.ID
+	if err := db.Model(&models.ProcessedLine{}).
+		Where("id = ?", processedLineID).
+		Update("download_info_id", &downloadInfoID).Error; err != nil {
+		return nil, errors.DatabaseError("failed to link download info to processed line", err)
+	}
+
+	return downloadInfo, nil
+}
+
+// updateDownloadInfoCompleted updates DownloadInfo to completed status with final details
+func (d *Downloader) updateDownloadInfoCompleted(ctx context.Context, downloadInfoID uint, filePath string, fileSize int64) error {
+	db := database.Get()
+	if db == nil {
+		return errors.New(errors.CodeInternal, "database not initialized")
+	}
+
+	now := time.Now()
+	updates := map[string]interface{}{
+		"status":        string(models.DownloadStatusCompleted),
+		"download_path": filePath,
+		"file_size":     fileSize,
+		"completed_at":  now,
+		"updated_at":    now,
+		"locked_at":     nil, // Release lock
+		"locked_by":     nil,
+	}
+
+	// Update DownloadInfo with all completion details
+	if err := db.Model(&models.DownloadInfo{}).
+		Where("id = ?", downloadInfoID).
+		Updates(updates).Error; err != nil {
+		return errors.DatabaseError("failed to update download info to completed", err)
+	}
+
+	return nil
+}
+
+// updateProcessedLineState updates the ProcessedLine state (for backward compatibility)
+func (d *Downloader) updateProcessedLineState(processedLineID uint, state models.ProcessingState) error {
+	db := database.Get()
+	if db == nil {
+		return errors.New(errors.CodeInternal, "database not initialized")
+	}
+
+	updates := map[string]interface{}{
+		"state":      state,
+		"updated_at": time.Now(),
+	}
+
+	if err := db.Model(&models.ProcessedLine{}).
+		Where("id = ?", processedLineID).
+		Updates(updates).Error; err != nil {
+		return errors.DatabaseError("failed to update processed line state", err)
+	}
+
+	return nil
+}
+
+// updateDownloadState updates the download state in the database (DEPRECATED - kept for compatibility)
+// Use StateManager methods instead
 func (d *Downloader) updateDownloadState(processedLineID uint, state models.ProcessingState, errorMsg *string) error {
 	db := database.Get()
 	if db == nil {

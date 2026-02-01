@@ -79,3 +79,10 @@ downloads:
   max_parallel: 3  # Number of concurrent downloads
   timeout: 600  # Download timeout in seconds (10 minutes)
   retry_attempts: 3  # Number of retry attempts on failure
+  
+  # Resume downloads settings
+  resume_enabled: true  # Enable resumable downloads
+  progress_interval_mb: 10  # Persist progress every N megabytes
+  progress_interval_seconds: 30  # Persist progress every N seconds (whichever comes first)
+  lock_timeout_minutes: 5  # Consider locks older than this stale (for cleanup)
+  max_retry_attempts: 5  # Maximum number of retry attempts before giving up

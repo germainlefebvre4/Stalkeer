@@ -18,6 +18,7 @@ const (
 	CodeDatabaseConnection  ErrorCode = "DATABASE_CONNECTION_ERROR"
 	CodeDatabaseQuery       ErrorCode = "DATABASE_QUERY_ERROR"
 	CodeDatabaseTransaction ErrorCode = "DATABASE_TRANSACTION_ERROR"
+	CodeNotFound            ErrorCode = "NOT_FOUND"
 
 	// Parse errors
 	CodeParse         ErrorCode = "PARSE_ERROR"
@@ -146,4 +147,18 @@ func GetErrorCode(err error) ErrorCode {
 		return appErr.Code
 	}
 	return CodeUnknown
+}
+
+// IsValidationError checks if an error is a validation error
+func IsValidationError(err error) bool {
+	var appErr *AppError
+	if errors.As(err, &appErr) {
+		return appErr.Code == CodeValidation || appErr.Code == CodeInvalidInput
+	}
+	return false
+}
+
+// NotFoundError creates a not found error
+func NotFoundError(resource, identifier string) *AppError {
+	return New(CodeNotFound, fmt.Sprintf("%s not found: %s", resource, identifier))
 }

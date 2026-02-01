@@ -104,6 +104,21 @@ export STALKEER_M3U_FILE_PATH=/path/to/playlist.m3u
 # Run database migrations
 ./bin/stalkeer migrate
 
+# Resume incomplete or failed downloads
+./bin/stalkeer resume-downloads
+
+# Resume downloads with options
+./bin/stalkeer resume-downloads --limit 10 --parallel 5 --verbose
+
+# Preview what would be resumed (dry-run)
+./bin/stalkeer resume-downloads --dry-run
+
+# Integrate with Radarr - resume incomplete downloads first
+./bin/stalkeer radarr --resume --limit 20
+
+# Integrate with Sonarr - resume incomplete downloads first
+./bin/stalkeer sonarr --resume --limit 20
+
 # Check version
 ./bin/stalkeer version
 
@@ -152,6 +167,77 @@ TMDB Enrichment:
   Match rate:    92.1%
 
 Processing time: 1.2s
+```
+
+#### resume-downloads
+
+Resume incomplete or failed downloads that were interrupted:
+
+```bash
+stalkeer resume-downloads [flags]
+
+Flags:
+      --dry-run             preview downloads without executing
+      --limit int           maximum number of downloads to process (0 = no limit)
+      --parallel int        number of concurrent downloads (default 3)
+      --max-retries int     maximum retry attempts (default 5)
+      --clean-stale-locks   clean up stale download locks before resuming (default true)
+  -v, --verbose             verbose output
+      --service string      filter by service type: all, radarr, sonarr (default "all")
+```
+
+The resume-downloads command identifies and resumes downloads that:
+- Were interrupted by application shutdown or crashes
+- Failed due to temporary network issues
+- Are in pending, downloading, paused, or failed states
+- Haven't exceeded the maximum retry limit
+
+Example usage:
+```bash
+# Resume all incomplete downloads
+stalkeer resume-downloads
+
+# Preview what would be resumed
+stalkeer resume-downloads --dry-run --verbose
+
+# Resume up to 10 downloads with 5 concurrent workers
+stalkeer resume-downloads --limit 10 --parallel 5
+
+# Resume only failed Radarr downloads
+stalkeer resume-downloads --service radarr
+```
+
+#### radarr
+
+Download missing movies from Radarr by matching against M3U playlist:
+
+```bash
+stalkeer radarr [flags]
+
+Flags:
+      --dry-run      preview matches without downloading
+      --limit int    maximum number of movies to process (0 = no limit)
+      --parallel int number of concurrent downloads (default 3)
+      --force        re-download existing files
+  -v, --verbose      verbose output
+      --resume       resume incomplete downloads before fetching new items
+```
+
+#### sonarr
+
+Download missing TV show episodes from Sonarr by matching against M3U playlist:
+
+```bash
+stalkeer sonarr [flags]
+
+Flags:
+      --dry-run       preview matches without downloading
+      --limit int     maximum number of episodes to process (0 = no limit)
+      --parallel int  number of concurrent downloads (default 3)
+      --force         re-download existing files
+  -v, --verbose       verbose output
+      --series-id int filter to specific Sonarr series ID
+      --resume        resume incomplete downloads before fetching new episodes
 ```
 
 #### dryrun

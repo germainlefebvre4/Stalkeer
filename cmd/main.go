@@ -867,6 +867,7 @@ func init() {
 	radarrCmd.Flags().Int("parallel", 3, "number of concurrent downloads")
 	radarrCmd.Flags().Bool("force", false, "re-download existing files")
 	radarrCmd.Flags().BoolP("verbose", "v", false, "verbose output")
+	radarrCmd.Flags().Bool("resume", false, "resume incomplete downloads before fetching new items")
 
 	// Sonarr command flags
 	sonarrCmd.Flags().Bool("dry-run", false, "preview matches without downloading")
@@ -875,10 +876,11 @@ func init() {
 	sonarrCmd.Flags().Bool("force", false, "re-download existing files")
 	sonarrCmd.Flags().BoolP("verbose", "v", false, "verbose output")
 	sonarrCmd.Flags().Int("series-id", 0, "filter to specific Sonarr series ID")
+	sonarrCmd.Flags().Bool("resume", false, "resume incomplete downloads before fetching new episodes")
 
 	// Cleanup command flags
-	// cleanupCmd.Flags().Bool("dry-run", false, "preview cleanup without deleting files")
-	// cleanupCmd.Flags().Int("retention-hours", 24, "delete temp files older than this many hours")
+	cleanupCmd.Flags().Bool("dry-run", false, "preview cleanup without deleting files")
+	cleanupCmd.Flags().Int("retention-hours", 24, "delete temp files older than this many hours")
 
 	cobra.OnInitialize(initConfig)
 	rootCmd.AddCommand(versionCmd)
@@ -889,7 +891,8 @@ func init() {
 	rootCmd.AddCommand(migrateCmd)
 	rootCmd.AddCommand(radarrCmd)
 	rootCmd.AddCommand(sonarrCmd)
-	// rootCmd.AddCommand(cleanupCmd)
+	rootCmd.AddCommand(resumeDownloadsCmd)
+	rootCmd.AddCommand(cleanupCmd)
 }
 
 func initConfig() {

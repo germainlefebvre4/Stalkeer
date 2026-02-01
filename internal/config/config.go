@@ -97,12 +97,17 @@ type SonarrConfig struct {
 
 // DownloadsConfig holds download settings
 type DownloadsConfig struct {
-	MoviesPath    string `mapstructure:"movies_path"`
-	TVShowsPath   string `mapstructure:"tvshows_path"`
-	TempDir       string `mapstructure:"temp_dir"`
-	MaxParallel   int    `mapstructure:"max_parallel"`
-	Timeout       int    `mapstructure:"timeout"`
-	RetryAttempts int    `mapstructure:"retry_attempts"`
+	MoviesPath              string `mapstructure:"movies_path"`
+	TVShowsPath             string `mapstructure:"tvshows_path"`
+	TempDir                 string `mapstructure:"temp_dir"`
+	MaxParallel             int    `mapstructure:"max_parallel"`
+	Timeout                 int    `mapstructure:"timeout"`
+	RetryAttempts           int    `mapstructure:"retry_attempts"`
+	ResumeEnabled           bool   `mapstructure:"resume_enabled"`
+	ProgressIntervalMB      int64  `mapstructure:"progress_interval_mb"`
+	ProgressIntervalSeconds int    `mapstructure:"progress_interval_seconds"`
+	LockTimeoutMinutes      int    `mapstructure:"lock_timeout_minutes"`
+	MaxRetryAttempts        int    `mapstructure:"max_retry_attempts"`
 }
 
 var cfg *Config
@@ -211,6 +216,11 @@ func setDefaults() {
 	viper.SetDefault("downloads.max_parallel", 3)
 	viper.SetDefault("downloads.timeout", 300)
 	viper.SetDefault("downloads.retry_attempts", 3)
+	viper.SetDefault("downloads.resume_enabled", true)
+	viper.SetDefault("downloads.progress_interval_mb", 10)
+	viper.SetDefault("downloads.progress_interval_seconds", 30)
+	viper.SetDefault("downloads.lock_timeout_minutes", 5)
+	viper.SetDefault("downloads.max_retry_attempts", 5)
 
 	// Logging defaults
 	viper.SetDefault("logging.level", "info")

@@ -61,6 +61,11 @@ func Get() *gorm.DB {
 	return db
 }
 
+// GetDB is an alias for Get() to maintain compatibility
+func GetDB() *gorm.DB {
+	return db
+}
+
 // HealthCheck verifies database connectivity
 func HealthCheck() error {
 	sqlDB, err := db.DB()
