@@ -96,7 +96,7 @@ func TestDownload_Success(t *testing.T) {
 	// Perform download
 	result, err := d.Download(context.Background(), DownloadOptions{
 		URL:             server.URL,
-		DestinationPath: destPath,
+		BaseDestPath: destPath,
 		OnProgress: func(downloaded, total int64) {
 			progressCalls++
 			lastDownloaded = downloaded
@@ -159,7 +159,7 @@ func TestDownload_WithDatabaseTracking(t *testing.T) {
 	// Perform download with database tracking
 	result, err := d.Download(context.Background(), DownloadOptions{
 		URL:             server.URL,
-		DestinationPath: destPath,
+		BaseDestPath: destPath,
 		ProcessedLineID: processedLine.ID,
 	})
 
@@ -185,14 +185,14 @@ func TestDownload_ValidationErrors(t *testing.T) {
 			name: "empty URL",
 			opts: DownloadOptions{
 				URL:             "",
-				DestinationPath: "/tmp/file.txt",
+				BaseDestPath: "/tmp/file.txt",
 			},
 		},
 		{
 			name: "empty destination",
 			opts: DownloadOptions{
 				URL:             "http://example.com/file",
-				DestinationPath: "",
+				BaseDestPath: "",
 			},
 		},
 	}
@@ -234,7 +234,7 @@ func TestDownload_HTTPErrors(t *testing.T) {
 			// Perform download
 			result, err := d.Download(context.Background(), DownloadOptions{
 				URL:             server.URL,
-				DestinationPath: destPath,
+				BaseDestPath: destPath,
 			})
 
 			// Should fail
@@ -275,7 +275,7 @@ func TestDownload_Retry(t *testing.T) {
 	// Perform download
 	result, err := d.Download(context.Background(), DownloadOptions{
 		URL:             server.URL,
-		DestinationPath: destPath,
+		BaseDestPath: destPath,
 	})
 
 	// Should succeed after retries
@@ -313,7 +313,7 @@ func TestDownload_ContextCancellation(t *testing.T) {
 	// Perform download - should be cancelled
 	result, err := d.Download(ctx, DownloadOptions{
 		URL:             server.URL,
-		DestinationPath: destPath,
+		BaseDestPath: destPath,
 	})
 
 	// Should fail due to context cancellation
@@ -354,7 +354,7 @@ func TestDownload_DatabaseStateOnFailure(t *testing.T) {
 	// Perform download with database tracking
 	result, err := d.Download(context.Background(), DownloadOptions{
 		URL:             server.URL,
-		DestinationPath: destPath,
+		BaseDestPath: destPath,
 		ProcessedLineID: processedLine.ID,
 	})
 
@@ -422,7 +422,7 @@ func TestDownload_CreatesDestinationDirectory(t *testing.T) {
 	// Perform download
 	result, err := d.Download(context.Background(), DownloadOptions{
 		URL:             server.URL,
-		DestinationPath: destPath,
+		BaseDestPath: destPath,
 	})
 
 	// Should succeed and create nested directories

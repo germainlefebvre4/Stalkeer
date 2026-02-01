@@ -115,6 +115,15 @@ type Genre struct {
 	Name string `json:"name"`
 }
 
+// ExternalIDs represents external IDs for a movie or TV show
+type ExternalIDs struct {
+	IMDBID      *string `json:"imdb_id"`
+	TVDBID      *int    `json:"tvdb_id"`
+	FacebookID  *string `json:"facebook_id"`
+	InstagramID *string `json:"instagram_id"`
+	TwitterID   *string `json:"twitter_id"`
+}
+
 // NewClient creates a new TMDB API client
 func NewClient(cfg Config) *Client {
 	if cfg.Timeout == 0 {
@@ -197,6 +206,26 @@ func (c *Client) GetTVShowDetails(tvShowID int) (*TVShowDetails, error) {
 		return nil, err
 	}
 	return &details, nil
+}
+
+// GetMovieExternalIDs retrieves external IDs for a specific movie
+func (c *Client) GetMovieExternalIDs(movieID int) (*ExternalIDs, error) {
+	var externalIDs ExternalIDs
+	endpoint := fmt.Sprintf("/movie/%d/external_ids", movieID)
+	if err := c.makeRequest(endpoint, url.Values{}, &externalIDs); err != nil {
+		return nil, err
+	}
+	return &externalIDs, nil
+}
+
+// GetTVShowExternalIDs retrieves external IDs for a specific TV show
+func (c *Client) GetTVShowExternalIDs(tvShowID int) (*ExternalIDs, error) {
+	var externalIDs ExternalIDs
+	endpoint := fmt.Sprintf("/tv/%d/external_ids", tvShowID)
+	if err := c.makeRequest(endpoint, url.Values{}, &externalIDs); err != nil {
+		return nil, err
+	}
+	return &externalIDs, nil
 }
 
 // makeRequest performs an HTTP request to the TMDB API with circuit breaker and retry

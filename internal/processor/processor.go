@@ -316,6 +316,16 @@ func (p *Processor) enrichMovie(line *models.ProcessedLine, language string, sta
 		return err
 	}
 
+	// Get external IDs (including TVDB ID)
+	externalIDs, err := p.tmdbClient.GetMovieExternalIDs(result.ID)
+	if err != nil {
+		// Log warning but don't fail - external IDs are optional
+		p.logger.WithFields(map[string]interface{}{
+			"tmdb_id": result.ID,
+			"error":   err,
+		}).Warn("Failed to fetch movie external IDs")
+	}
+
 	// Create or find existing movie
 	var movie models.Movie
 	tmdbYear := tmdb.ExtractYear(details.ReleaseDate)
@@ -327,6 +337,7 @@ func (p *Processor) enrichMovie(line *models.ProcessedLine, language string, sta
 		// Create new movie
 		movie = models.Movie{
 			TMDBID:     details.ID,
+			TVDBID:     externalIDs.TVDBID,
 			TMDBTitle:  details.Title,
 			TMDBYear:   tmdbYear,
 			TMDBGenres: &genres,
@@ -339,6 +350,15 @@ func (p *Processor) enrichMovie(line *models.ProcessedLine, language string, sta
 	} else if err != nil {
 		stats.TMDBErrors++
 		return fmt.Errorf("failed to check for existing movie: %w", err)
+	} else if externalIDs != nil && externalIDs.TVDBID != nil && movie.TVDBID == nil {
+		// Update existing movie with TVDB ID if it's missing
+		movie.TVDBID = externalIDs.TVDBID
+		if err := p.db.Save(&movie).Error; err != nil {
+			p.logger.WithFields(map[string]interface{}{
+				"movie_id": movie.ID,
+				"error":    err,
+			}).Warn("Failed to update movie with TVDB ID")
+		}
 	}
 
 	// Associate with processed line
@@ -367,6 +387,16 @@ func (p *Processor) enrichTVShow(line *models.ProcessedLine, classification clas
 		return err
 	}
 
+	// Get external IDs (including TVDB ID)
+	externalIDs, err := p.tmdbClient.GetTVShowExternalIDs(result.ID)
+	if err != nil {
+		// Log warning but don't fail - external IDs are optional
+		p.logger.WithFields(map[string]interface{}{
+			"tmdb_id": result.ID,
+			"error":   err,
+		}).Warn("Failed to fetch TV show external IDs")
+	}
+
 	// Create or find existing TV show
 	var tvshow models.TVShow
 	tmdbYear := tmdb.ExtractYear(details.FirstAirDate)
@@ -390,6 +420,7 @@ func (p *Processor) enrichTVShow(line *models.ProcessedLine, classification clas
 		// Create new TV show entry
 		tvshow = models.TVShow{
 			TMDBID:     details.ID,
+			TVDBID:     externalIDs.TVDBID,
 			TMDBTitle:  details.Name,
 			TMDBYear:   tmdbYear,
 			TMDBGenres: &genres,
@@ -403,6 +434,15 @@ func (p *Processor) enrichTVShow(line *models.ProcessedLine, classification clas
 	} else if err != nil {
 		stats.TMDBErrors++
 		return fmt.Errorf("failed to check for existing TV show: %w", err)
+	} else if externalIDs != nil && externalIDs.TVDBID != nil && tvshow.TVDBID == nil {
+		// Update existing TV show with TVDB ID if it's missing
+		tvshow.TVDBID = externalIDs.TVDBID
+		if err := p.db.Save(&tvshow).Error; err != nil {
+			p.logger.WithFields(map[string]interface{}{
+				"tvshow_id": tvshow.ID,
+				"error":     err,
+			}).Warn("Failed to update TV show with TVDB ID")
+		}
 	}
 
 	// Associate with processed line

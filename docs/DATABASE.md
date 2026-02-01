@@ -67,6 +67,7 @@ Stores movie metadata from TMDB with deduplication by title and year.
 |--------|------|-------------|-------------|
 | `id` | INTEGER | PRIMARY KEY | Unique identifier |
 | `tmdb_id` | INTEGER | NOT NULL | TMDB database ID |
+| `tvdb_id` | INTEGER | NULLABLE | TVDB database ID (from TMDB external_ids) |
 | `tmdb_title` | VARCHAR(255) | NOT NULL | Movie title from TMDB |
 | `tmdb_year` | INTEGER | NOT NULL | Release year from TMDB |
 | `tmdb_genres` | TEXT | NULLABLE | Genres as JSON array |
@@ -76,6 +77,7 @@ Stores movie metadata from TMDB with deduplication by title and year.
 
 **Indexes:**
 - `idx_movies_tmdb` on `tmdb_id`
+- `idx_movies_tvdb` on `tvdb_id`
 - `idx_movies_year` on `tmdb_year`
 
 **Unique Constraints:**
@@ -94,6 +96,7 @@ Stores TV show metadata from TMDB with season/episode information.
 |--------|------|-------------|-------------|
 | `id` | INTEGER | PRIMARY KEY | Unique identifier |
 | `tmdb_id` | INTEGER | NOT NULL | TMDB database ID |
+| `tvdb_id` | INTEGER | NULLABLE | TVDB database ID (from TMDB external_ids) |
 | `tmdb_title` | VARCHAR(255) | NOT NULL | Show title from TMDB |
 | `tmdb_year` | INTEGER | NOT NULL | First air date year |
 | `tmdb_genres` | TEXT | NULLABLE | Genres as JSON array |
@@ -104,6 +107,7 @@ Stores TV show metadata from TMDB with season/episode information.
 
 **Indexes:**
 - `idx_tvshows_tmdb` on `tmdb_id`
+- `idx_tvshows_tvdb` on `tvdb_id`
 - `idx_tvshows_season_episode` on `(season, episode)`
 
 **Unique Constraints:**

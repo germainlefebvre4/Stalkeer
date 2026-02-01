@@ -76,7 +76,7 @@ func TestParallelDownloader_DownloadBatch(t *testing.T) {
 			ID: i,
 			Options: DownloadOptions{
 				URL:             server.URL,
-				DestinationPath: filepath.Join(tempDir, fmt.Sprintf("file_%d.txt", i)),
+				BaseDestPath: filepath.Join(tempDir, fmt.Sprintf("file_%d.txt", i)),
 			},
 		}
 	}
@@ -131,9 +131,9 @@ func TestParallelDownloader_DownloadBatchSync(t *testing.T) {
 
 	// Create jobs
 	jobs := []DownloadJob{
-		{ID: 1, Options: DownloadOptions{URL: server.URL, DestinationPath: filepath.Join(tempDir, "file1.txt")}},
-		{ID: 2, Options: DownloadOptions{URL: server.URL, DestinationPath: filepath.Join(tempDir, "file2.txt")}},
-		{ID: 3, Options: DownloadOptions{URL: server.URL, DestinationPath: filepath.Join(tempDir, "file3.txt")}},
+		{ID: 1, Options: DownloadOptions{URL: server.URL, BaseDestPath: filepath.Join(tempDir, "file1.txt")}},
+		{ID: 2, Options: DownloadOptions{URL: server.URL, BaseDestPath: filepath.Join(tempDir, "file2.txt")}},
+		{ID: 3, Options: DownloadOptions{URL: server.URL, BaseDestPath: filepath.Join(tempDir, "file3.txt")}},
 	}
 
 	// Create parallel downloader
@@ -175,7 +175,7 @@ func TestParallelDownloader_DownloadBatchWithProgress(t *testing.T) {
 			ID: i,
 			Options: DownloadOptions{
 				URL:             server.URL,
-				DestinationPath: filepath.Join(tempDir, fmt.Sprintf("file_%d.txt", i)),
+				BaseDestPath: filepath.Join(tempDir, fmt.Sprintf("file_%d.txt", i)),
 			},
 		}
 	}
@@ -249,7 +249,7 @@ func TestParallelDownloader_ConcurrencyControl(t *testing.T) {
 			ID: i,
 			Options: DownloadOptions{
 				URL:             server.URL,
-				DestinationPath: filepath.Join(tempDir, fmt.Sprintf("file_%d.txt", i)),
+				BaseDestPath: filepath.Join(tempDir, fmt.Sprintf("file_%d.txt", i)),
 			},
 		}
 	}
@@ -307,7 +307,7 @@ func TestParallelDownloader_ErrorHandling(t *testing.T) {
 			ID: i,
 			Options: DownloadOptions{
 				URL:             server.URL,
-				DestinationPath: filepath.Join(tempDir, fmt.Sprintf("file_%d.txt", i)),
+				BaseDestPath: filepath.Join(tempDir, fmt.Sprintf("file_%d.txt", i)),
 			},
 		}
 	}
@@ -352,9 +352,9 @@ func TestParallelDownloader_ContextCancellation(t *testing.T) {
 
 	// Create jobs
 	jobs := []DownloadJob{
-		{ID: 1, Options: DownloadOptions{URL: server.URL, DestinationPath: filepath.Join(tempDir, "file1.txt")}},
-		{ID: 2, Options: DownloadOptions{URL: server.URL, DestinationPath: filepath.Join(tempDir, "file2.txt")}},
-		{ID: 3, Options: DownloadOptions{URL: server.URL, DestinationPath: filepath.Join(tempDir, "file3.txt")}},
+		{ID: 1, Options: DownloadOptions{URL: server.URL, BaseDestPath: filepath.Join(tempDir, "file1.txt")}},
+		{ID: 2, Options: DownloadOptions{URL: server.URL, BaseDestPath: filepath.Join(tempDir, "file2.txt")}},
+		{ID: 3, Options: DownloadOptions{URL: server.URL, BaseDestPath: filepath.Join(tempDir, "file3.txt")}},
 	}
 
 	// Create parallel downloader

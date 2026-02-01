@@ -411,9 +411,10 @@ and download matched items from M3U playlist stream URLs.`,
 		for i, movie := range missingMovies {
 			fmt.Printf("[%d/%d] Processing: %s (%d)\n", i+1, len(missingMovies), movie.Title, movie.Year)
 
-			// Match against database
-			dbMovie, processedLine, confidence, err := matcher.MatchMovieByTMDB(
-				db, movie.TMDBID, movie.Title, movie.Year,
+			// Match against database - try TVDB first, then TMDB
+			// Note: Radarr doesn't provide TVDB ID, so we rely on TMDB ID and database TVDB storage
+			dbMovie, processedLine, confidence, err := matcher.MatchMovieByTVDB(
+				db, 0, movie.TMDBID, movie.Title, movie.Year,
 			)
 
 			if err != nil {
@@ -451,22 +452,34 @@ and download matched items from M3U playlist stream URLs.`,
 			}
 
 			// Download
-			destPath := filepath.Join(
+			baseDestPath := filepath.Join(
 				cfg.Downloads.MoviesPath,
-				fmt.Sprintf("%s_%d", sanitizeFilename(movie.Title), movie.Year),
-				"video.mkv",
+				fmt.Sprintf("%s (%d)", sanitizeFilename(movie.Title), movie.Year),
+				fmt.Sprintf("%s (%d)", sanitizeFilename(movie.Title), movie.Year),
 			)
 
-			fmt.Printf("  ⬇️  Downloading to: %s\n", destPath)
+			if dryRun {
+				fmt.Printf("  🔍 Would download to: %s[extension detected from stream]\n", baseDestPath)
+				stats.Downloaded++
+				continue
+			}
 
+			fmt.Printf("  ⬇️  Downloading to: %s[extension will be detected]\n", baseDestPath)
+
+			var lastUpdate time.Time
 			result, err := dl.Download(ctx, downloader.DownloadOptions{
 				URL:             *processedLine.LineURL,
-				DestinationPath: destPath,
+				BaseDestPath:    baseDestPath,
+				TempDir:         cfg.Downloads.TempDir,
 				ProcessedLineID: processedLine.ID,
 				OnProgress: func(downloaded, total int64) {
 					if total > 0 {
-						pct := float64(downloaded) / float64(total) * 100
-						fmt.Printf("\r  Progress: %.1f%% (%d / %d bytes)", pct, downloaded, total)
+						now := time.Now()
+						if now.Sub(lastUpdate) >= 10*time.Second {
+							pct := float64(downloaded) / float64(total) * 100
+							fmt.Printf("\r  Progress: %.1f%% (%d / %d bytes)", pct, downloaded, total)
+							lastUpdate = now
+						}
 					}
 				},
 			})
@@ -480,12 +493,6 @@ and download matched items from M3U playlist stream URLs.`,
 			fmt.Printf("\n  ✅ Downloaded: %s (%.2f MB)\n", result.FilePath, float64(result.FileSize)/(1024*1024))
 			stats.Downloaded++
 		}
-
-		// Print summary
-		fmt.Println("\n=== Download Summary ===")
-		fmt.Printf("Total movies:     %d\n", stats.Total)
-		fmt.Printf("Matched:          %d\n", stats.Matched)
-		fmt.Printf("Not found:        %d\n", stats.NotFound)
 		if dryRun {
 			fmt.Printf("Would download:   %d\n", stats.Downloaded)
 		} else {
@@ -623,9 +630,9 @@ and download matched items from M3U playlist stream URLs.`,
 			fmt.Printf("[%d/%d] Processing: %s S%02dE%02d - %s\n",
 				i+1, len(missingEpisodes), series.Title, episode.SeasonNumber, episode.EpisodeNumber, episode.Title)
 
-			// Match against database (using TvdbID as proxy for TMDB - may need adjustment)
-			dbShow, processedLine, confidence, err := matcher.MatchTVShowByTMDB(
-				db, series.TvdbID, series.Title, episode.SeasonNumber, episode.EpisodeNumber,
+			// Match against database using TVDB ID from Sonarr
+			dbShow, processedLine, confidence, err := matcher.MatchTVShowByTVDB(
+				db, series.TvdbID, 0, series.Title, episode.SeasonNumber, episode.EpisodeNumber,
 			)
 
 			if err != nil {
@@ -665,23 +672,44 @@ and download matched items from M3U playlist stream URLs.`,
 			}
 
 			// Download
-			destPath := filepath.Join(
+			baseDestPath := filepath.Join(
 				cfg.Downloads.TVShowsPath,
 				sanitizeFilename(series.Title),
-				fmt.Sprintf("S%02d", episode.SeasonNumber),
-				fmt.Sprintf("S%02dE%02d.mkv", episode.SeasonNumber, episode.EpisodeNumber),
+				fmt.Sprintf("Season %02d", episode.SeasonNumber),
+				fmt.Sprintf("%s - S%02dE%02d", sanitizeFilename(series.Title), episode.SeasonNumber, episode.EpisodeNumber),
 			)
 
-			fmt.Printf("  ⬇️  Downloading to: %s\n", destPath)
+			if dryRun {
+				fmt.Printf("  🔍 Would download to: %s[extension detected from stream]\n", baseDestPath)
+				stats.Downloaded++
+				continue
+			}
 
+			fmt.Printf("  ⬇️  Downloading to: %s[extension will be detected]\n", baseDestPath)
+
+			var lastUpdate time.Time
+			startTime := time.Now()
 			result, err := dl.Download(ctx, downloader.DownloadOptions{
 				URL:             *processedLine.LineURL,
-				DestinationPath: destPath,
+				BaseDestPath:    baseDestPath,
+				TempDir:         cfg.Downloads.TempDir,
 				ProcessedLineID: processedLine.ID,
 				OnProgress: func(downloaded, total int64) {
 					if total > 0 {
-						pct := float64(downloaded) / float64(total) * 100
-						fmt.Printf("\r  Progress: %.1f%% (%d / %d bytes)", pct, downloaded, total)
+						now := time.Now()
+						if now.Sub(lastUpdate) >= 10*time.Second {
+							pct := float64(downloaded) / float64(total) * 100
+							elapsed := now.Sub(startTime)
+							speed := float64(downloaded) / elapsed.Seconds()
+							remaining := time.Duration(0)
+							if speed > 0 {
+								remaining = time.Duration(float64(total-downloaded)/speed) * time.Second
+							}
+							fmt.Printf("\r  Progress: %.1f%% - %s / %s - Elapsed: %v - Remaining: %v",
+								pct, formatBytes(downloaded), formatBytes(total),
+								elapsed.Round(time.Second), remaining.Round(time.Second))
+							lastUpdate = now
+						}
 					}
 				},
 			})
@@ -709,6 +737,20 @@ and download matched items from M3U playlist stream URLs.`,
 		fmt.Printf("Failed:           %d\n", stats.Failed)
 		fmt.Printf("Skipped:          %d\n", stats.Skipped)
 	},
+}
+
+// formatBytes converts bytes to human-readable format
+func formatBytes(bytes int64) string {
+	const unit = 1024
+	if bytes < unit {
+		return fmt.Sprintf("%d B", bytes)
+	}
+	div, exp := int64(unit), 0
+	for n := bytes / unit; n >= unit; n /= unit {
+		div *= unit
+		exp++
+	}
+	return fmt.Sprintf("%.2f %cB", float64(bytes)/float64(div), "KMGTPE"[exp])
 }
 
 // sanitizeFilename removes invalid characters from filenames
@@ -773,6 +815,10 @@ func init() {
 	sonarrCmd.Flags().BoolP("verbose", "v", false, "verbose output")
 	sonarrCmd.Flags().Int("series-id", 0, "filter to specific Sonarr series ID")
 
+	// Cleanup command flags
+	cleanupCmd.Flags().Bool("dry-run", false, "preview cleanup without deleting files")
+	cleanupCmd.Flags().Int("retention-hours", 24, "delete temp files older than this many hours")
+
 	cobra.OnInitialize(initConfig)
 	rootCmd.AddCommand(versionCmd)
 	rootCmd.AddCommand(serverCmd)
@@ -782,6 +828,7 @@ func init() {
 	rootCmd.AddCommand(migrateCmd)
 	rootCmd.AddCommand(radarrCmd)
 	rootCmd.AddCommand(sonarrCmd)
+	rootCmd.AddCommand(cleanupCmd)
 }
 
 func initConfig() {

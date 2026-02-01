@@ -23,7 +23,7 @@ all: test build
 build:
 	@echo "Building $(BINARY_NAME)..."
 	@mkdir -p $(BIN_DIR)
-	$(GOBUILD) -o $(BIN_DIR)/$(BINARY_NAME) $(MAIN_FILE)
+	$(GOBUILD) -o $(BIN_DIR)/$(BINARY_NAME) ./$(CMD_DIR)/...
 	@echo "Build complete: $(BIN_DIR)/$(BINARY_NAME)"
 
 ## test: Run tests
@@ -97,7 +97,15 @@ docker-logs:
 ## db-migrate: Run database migrations
 db-migrate:
 	@echo "Running database migrations..."
-	@./$(BIN_DIR)/$(BINARY_NAME) || echo "Build the application first with 'make build'"
+	@./$(BIN_DIR)/$(BINARY_NAME) migrate || echo "Build the application first with 'make build'"
+
+# Drop and create the database
+db-drop-create:
+	PGPASSWORD=postgres psql -h localhost -U postgres -c "DROP DATABASE stalkeer;" || true
+	PGPASSWORD=postgres psql -h localhost -U postgres -c "CREATE DATABASE stalkeer;"
+
+db-truncate-tables:
+	PGPASSWORD=postgres psql -h localhost -U postgres -d stalkeer -c "TRUNCATE channels, movies, tvshows, uncategorized, processed_lines, processing_logs, download_info RESTART IDENTITY CASCADE;"
 
 ## help: Display this help message
 help:

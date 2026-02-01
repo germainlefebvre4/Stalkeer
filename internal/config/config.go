@@ -89,6 +89,7 @@ type SonarrConfig struct {
 type DownloadsConfig struct {
 	MoviesPath    string `mapstructure:"movies_path"`
 	TVShowsPath   string `mapstructure:"tvshows_path"`
+	TempDir       string `mapstructure:"temp_dir"`
 	MaxParallel   int    `mapstructure:"max_parallel"`
 	Timeout       int    `mapstructure:"timeout"`
 	RetryAttempts int    `mapstructure:"retry_attempts"`

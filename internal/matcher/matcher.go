@@ -142,6 +142,31 @@ func (m *Matcher) FindBestMovieMatch(line *models.ProcessedLine, movies []radarr
 	return bestMatch
 }
 
+// MatchMovieByTVDB finds a movie in the database by TVDB ID with fallback to TMDB ID
+// Returns (movie, processedLine, confidence, error)
+func MatchMovieByTVDB(db *gorm.DB, tvdbID int, tmdbID int, title string, year int) (*models.Movie, *models.ProcessedLine, int, error) {
+	// Primary match: exact TVDB ID
+	if tvdbID > 0 {
+		var movie models.Movie
+		err := db.Where("tvdb_id = ?", tvdbID).First(&movie).Error
+		if err == nil {
+			// Found exact TVDB match, get processed line
+			var processedLine models.ProcessedLine
+			err = db.Where("movie_id = ?", movie.ID).
+				Where("state IN ?", []string{string(models.StateProcessed), string(models.StateFailed)}).
+				Order("created_at DESC").
+				First(&processedLine).Error
+			if err != nil {
+				return nil, nil, 0, err
+			}
+			return &movie, &processedLine, 100, nil
+		}
+	}
+
+	// Fallback to TMDB matching
+	return MatchMovieByTMDB(db, tmdbID, title, year)
+}
+
 // MatchMovieByTMDB finds a movie in the database by TMDB ID with fallback to title/year matching
 // Returns (movie, processedLine, confidence, error)
 func MatchMovieByTMDB(db *gorm.DB, tmdbID int, title string, year int) (*models.Movie, *models.ProcessedLine, int, error) {
@@ -211,6 +236,39 @@ func MatchMovieByTMDB(db *gorm.DB, tmdbID int, title string, year int) (*models.
 	return bestMovie, &processedLine, confidence, nil
 }
 
+// MatchTVShowByTVDB finds a TV show episode in the database by TVDB ID with fallback to TMDB ID
+// Returns (tvshow, processedLine, confidence, error)
+func MatchTVShowByTVDB(db *gorm.DB, tvdbID int, tmdbID int, title string, season, episode int) (*models.TVShow, *models.ProcessedLine, int, error) {
+	// Primary match: exact TVDB ID + season + episode
+	if tvdbID > 0 {
+		var tvshow models.TVShow
+		query := db.Where("tvdb_id = ?", tvdbID)
+		if season > 0 {
+			query = query.Where("season = ?", season)
+		}
+		if episode > 0 {
+			query = query.Where("episode = ?", episode)
+		}
+
+		err := query.First(&tvshow).Error
+		if err == nil {
+			// Found exact TVDB match, get processed line
+			var processedLine models.ProcessedLine
+			err = db.Where("tv_show_id = ?", tvshow.ID).
+				Where("state IN ?", []string{string(models.StateProcessed), string(models.StateFailed)}).
+				Order("created_at DESC").
+				First(&processedLine).Error
+			if err != nil {
+				return nil, nil, 0, err
+			}
+			return &tvshow, &processedLine, 100, nil
+		}
+	}
+
+	// Fallback to TMDB matching
+	return MatchTVShowByTMDB(db, tmdbID, title, season, episode)
+}
+
 // MatchTVShowByTMDB finds a TV show episode in the database by TMDB ID, season, and episode
 // Returns (tvshow, processedLine, confidence, error)
 func MatchTVShowByTMDB(db *gorm.DB, tmdbID int, title string, season, episode int) (*models.TVShow, *models.ProcessedLine, int, error) {
@@ -228,7 +286,7 @@ func MatchTVShowByTMDB(db *gorm.DB, tmdbID int, title string, season, episode in
 	if err == nil {
 		// Found exact match, get processed line
 		var processedLine models.ProcessedLine
-		err = db.Where("tvshow_id = ?", tvshow.ID).
+		err = db.Where("tv_show_id = ?", tvshow.ID).
 			Where("state IN ?", []string{string(models.StateProcessed), string(models.StateFailed)}).
 			Order("created_at DESC").
 			First(&processedLine).Error
@@ -286,7 +344,7 @@ func MatchTVShowByTMDB(db *gorm.DB, tmdbID int, title string, season, episode in
 
 	// Get processed line for the best match
 	var processedLine models.ProcessedLine
-	err = db.Where("tvshow_id = ?", bestShow.ID).
+	err = db.Where("tv_show_id = ?", bestShow.ID).
 		Where("state IN ?", []string{string(models.StateProcessed), string(models.StateFailed)}).
 		Order("created_at DESC").
 		First(&processedLine).Error

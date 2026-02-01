@@ -7,30 +7,36 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/glefebvre/stalkeer/internal/database"
 	"github.com/glefebvre/stalkeer/internal/errors"
 	"github.com/glefebvre/stalkeer/internal/models"
 	"github.com/glefebvre/stalkeer/internal/retry"
+	"github.com/google/uuid"
 )
 
 // DownloadOptions holds configuration for a download operation
 type DownloadOptions struct {
 	URL             string
-	DestinationPath string
+	BaseDestPath    string // Path without extension
 	ProcessedLineID uint
 	OnProgress      func(downloaded, total int64)
 	Timeout         time.Duration
 	RetryAttempts   int
+	TempDir         string // Optional temp directory (empty = use OS temp)
 }
 
 // DownloadResult contains information about a completed download
 type DownloadResult struct {
-	FilePath  string
-	FileSize  int64
-	Duration  time.Duration
-	BytesRead int64
+	FilePath      string
+	TempPath      string // Temp path used (for debugging)
+	FileSize      int64
+	Extension     string
+	Duration      time.Duration
+	BytesRead     int64
+	MoveDuration  time.Duration
 }
 
 // Downloader handles media file downloads
@@ -71,8 +77,8 @@ func (d *Downloader) Download(ctx context.Context, opts DownloadOptions) (*Downl
 	if opts.URL == "" {
 		return nil, errors.ValidationError("download URL cannot be empty")
 	}
-	if opts.DestinationPath == "" {
-		return nil, errors.ValidationError("destination path cannot be empty")
+	if opts.BaseDestPath == "" {
+		return nil, errors.ValidationError("base destination path cannot be empty")
 	}
 
 	// Update state to downloading if ProcessedLineID is provided
@@ -82,24 +88,30 @@ func (d *Downloader) Download(ctx context.Context, opts DownloadOptions) (*Downl
 		}
 	}
 
-	// Create destination directory
-	dir := filepath.Dir(opts.DestinationPath)
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return nil, errors.Wrap(err, errors.CodeInternal, "failed to create destination directory")
+	// Create unique temp directory
+	tempDir := opts.TempDir
+	if tempDir == "" {
+		tempDir = os.TempDir()
 	}
+	tempDownloadDir := filepath.Join(tempDir, fmt.Sprintf("stalkeer-download-%s", uuid.New().String()))
+	if err := os.MkdirAll(tempDownloadDir, 0755); err != nil {
+		return nil, errors.Wrap(err, errors.CodeInternal, "failed to create temp directory")
+	}
+	defer os.RemoveAll(tempDownloadDir) // Clean up temp dir
 
-	// Create temporary file for atomic write
-	tempPath := opts.DestinationPath + ".tmp"
-	defer os.Remove(tempPath) // Clean up on error
+	// Create temporary file
+	tempPath := filepath.Join(tempDownloadDir, "download.tmp")
 
 	// Perform download with retry
 	var result *DownloadResult
+	var contentType string
 	err := retry.Do(ctx, d.retryConfig, func() error {
-		res, err := d.downloadFile(ctx, opts.URL, tempPath, opts.OnProgress)
+		res, ct, err := d.downloadFile(ctx, opts.URL, tempPath, opts.OnProgress)
 		if err != nil {
 			return err
 		}
 		result = res
+		contentType = ct
 		return nil
 	}, errors.IsRetryable)
 
@@ -111,13 +123,45 @@ func (d *Downloader) Download(ctx context.Context, opts DownloadOptions) (*Downl
 		return nil, errors.ExternalServiceError("download", "failed to download file", err)
 	}
 
-	// Atomic rename from temp to final path
-	if err := os.Rename(tempPath, opts.DestinationPath); err != nil {
-		return nil, errors.Wrap(err, errors.CodeInternal, "failed to rename downloaded file")
+	// Detect file extension
+	ext := detectFileExtension(opts.URL, contentType)
+	result.Extension = ext
+
+	// Construct final destination path with extension
+	finalDestPath := opts.BaseDestPath + ext
+
+	// Create destination directory
+	destDir := filepath.Dir(finalDestPath)
+	if err := os.MkdirAll(destDir, 0755); err != nil {
+		return nil, errors.Wrap(err, errors.CodeInternal, "failed to create destination directory")
 	}
 
-	result.FilePath = opts.DestinationPath
+	// Update state to organizing
+	if opts.ProcessedLineID > 0 {
+		if err := d.updateDownloadState(opts.ProcessedLineID, models.StateOrganizing, nil); err != nil {
+			return nil, err
+		}
+	}
+
+	// Move file to final destination
+	moveStart := time.Now()
+	if err := moveFile(tempPath, finalDestPath); err != nil {
+		if opts.ProcessedLineID > 0 {
+			errMsg := err.Error()
+			d.updateDownloadState(opts.ProcessedLineID, models.StateFailed, &errMsg)
+		}
+		return nil, errors.Wrap(err, errors.CodeInternal, "failed to move file to destination")
+	}
+
+	// Set proper file permissions
+	if err := os.Chmod(finalDestPath, 0644); err != nil {
+		return nil, errors.Wrap(err, errors.CodeInternal, "failed to set file permissions")
+	}
+
+	result.FilePath = finalDestPath
+	result.TempPath = tempPath
 	result.Duration = time.Since(startTime)
+	result.MoveDuration = time.Since(moveStart)
 
 	// Update state to downloaded
 	if opts.ProcessedLineID > 0 {
@@ -130,25 +174,28 @@ func (d *Downloader) Download(ctx context.Context, opts DownloadOptions) (*Downl
 }
 
 // downloadFile performs the actual HTTP download
-func (d *Downloader) downloadFile(ctx context.Context, url, destPath string, onProgress func(int64, int64)) (*DownloadResult, error) {
+func (d *Downloader) downloadFile(ctx context.Context, url, destPath string, onProgress func(int64, int64)) (*DownloadResult, string, error) {
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
+		return nil, "", fmt.Errorf("failed to create request: %w", err)
 	}
 
 	resp, err := d.httpClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch URL: %w", err)
+		return nil, "", fmt.Errorf("failed to fetch URL: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+		return nil, "", fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 	}
+
+	// Get content type for extension detection
+	contentType := resp.Header.Get("Content-Type")
 
 	out, err := os.Create(destPath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create file: %w", err)
+		return nil, "", fmt.Errorf("failed to create file: %w", err)
 	}
 	defer out.Close()
 
@@ -170,13 +217,13 @@ func (d *Downloader) downloadFile(ctx context.Context, url, destPath string, onP
 	}
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to write file: %w", err)
+		return nil, "", fmt.Errorf("failed to write file: %w", err)
 	}
 
 	return &DownloadResult{
 		FileSize:  bytesRead,
 		BytesRead: bytesRead,
-	}, nil
+	}, contentType, nil
 }
 
 // updateDownloadState updates the download state in the database
@@ -246,4 +293,105 @@ func (pr *progressReader) Read(p []byte) (int, error) {
 		pr.onProgress(pr.downloaded, pr.total)
 	}
 	return n, err
+}
+
+// detectFileExtension detects file extension from URL or Content-Type header
+func detectFileExtension(url string, contentType string) string {
+// 1. Try URL path
+if ext := filepath.Ext(url); ext != "" {
+// Clean up query parameters if present
+if idx := strings.Index(ext, "?"); idx != -1 {
+ext = ext[:idx]
+}
+if ext != "" {
+return ext
+}
+}
+
+// 2. Try Content-Type mapping
+extMap := map[string]string{
+"video/x-matroska":  ".mkv",
+"video/mp4":         ".mp4",
+"video/x-msvideo":   ".avi",
+"video/quicktime":   ".mov",
+"video/x-flv":       ".flv",
+"video/webm":        ".webm",
+"video/mpeg":        ".mpg",
+"video/3gpp":        ".3gp",
+"video/x-ms-wmv":    ".wmv",
+"application/x-mpegURL": ".m3u8",
+}
+
+// Clean content type (remove charset, etc.)
+if idx := strings.Index(contentType, ";"); idx != -1 {
+contentType = strings.TrimSpace(contentType[:idx])
+}
+
+if ext, ok := extMap[contentType]; ok {
+return ext
+}
+
+// 3. Default to .mkv
+return ".mkv"
+}
+
+// moveFile moves a file from src to dst, trying rename first, then copy+verify+delete
+func moveFile(src, dst string) error {
+// Try rename first (fast, atomic)
+if err := os.Rename(src, dst); err == nil {
+return nil
+}
+
+// Fallback: copy + verify + delete (needed for cross-filesystem moves)
+if err := copyFile(src, dst); err != nil {
+return fmt.Errorf("copy failed: %w", err)
+}
+
+// Verify file sizes match
+srcInfo, err := os.Stat(src)
+if err != nil {
+os.Remove(dst) // Clean up partial copy
+return fmt.Errorf("failed to stat source: %w", err)
+}
+
+dstInfo, err := os.Stat(dst)
+if err != nil {
+os.Remove(dst)
+return fmt.Errorf("failed to stat destination: %w", err)
+}
+
+if srcInfo.Size() != dstInfo.Size() {
+os.Remove(dst)
+return fmt.Errorf("file size mismatch after copy: src=%d dst=%d", srcInfo.Size(), dstInfo.Size())
+}
+
+// Remove source only after successful copy and verification
+return os.Remove(src)
+}
+
+// copyFile copies a file from src to dst
+func copyFile(src, dst string) error {
+srcFile, err := os.Open(src)
+if err != nil {
+return fmt.Errorf("failed to open source: %w", err)
+}
+defer srcFile.Close()
+
+dstFile, err := os.Create(dst)
+if err != nil {
+return fmt.Errorf("failed to create destination: %w", err)
+}
+defer dstFile.Close()
+
+_, err = io.Copy(dstFile, srcFile)
+if err != nil {
+return fmt.Errorf("failed to copy data: %w", err)
+}
+
+// Sync to ensure data is written to disk
+if err := dstFile.Sync(); err != nil {
+return fmt.Errorf("failed to sync: %w", err)
+}
+
+return nil
 }

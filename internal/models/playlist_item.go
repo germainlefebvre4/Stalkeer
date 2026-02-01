@@ -19,6 +19,7 @@ const (
 	StateProcessed   ProcessingState = "processed"
 	StatePending     ProcessingState = "pending"
 	StateDownloading ProcessingState = "downloading"
+	StateOrganizing  ProcessingState = "organizing"
 	StateDownloaded  ProcessingState = "downloaded"
 	StateFailed      ProcessingState = "failed"
 )

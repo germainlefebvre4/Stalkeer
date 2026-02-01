@@ -6,6 +6,7 @@ import "time"
 type Movie struct {
 	ID         uint      `gorm:"primaryKey" json:"id"`
 	TMDBID     int       `gorm:"not null;index:idx_movies_tmdb" json:"tmdb_id"`
+	TVDBID     *int      `gorm:"index:idx_movies_tvdb" json:"tvdb_id,omitempty"`
 	TMDBTitle  string    `gorm:"type:varchar(255);not null;uniqueIndex:idx_movies_unique,composite:tmdb_title_year" json:"tmdb_title"`
 	TMDBYear   int       `gorm:"not null;uniqueIndex:idx_movies_unique,composite:tmdb_title_year" json:"tmdb_year"`
 	TMDBGenres *string   `gorm:"type:text" json:"tmdb_genres,omitempty"`
