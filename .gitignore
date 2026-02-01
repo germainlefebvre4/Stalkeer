@@ -15,6 +15,10 @@
 go.work
 go.work.sum
 
+# Go debug files
+*.delve
+cmd/__debug_bin*
+
 # Build artifacts
 bin/
 dist/

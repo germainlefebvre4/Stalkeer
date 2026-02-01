@@ -46,8 +46,8 @@ Use --dry-run to preview which downloads would be resumed without actually downl
 		}
 		cfg := config.Get()
 
-		// Initialize loggers
-		logger.InitializeLoggers(cfg.GetAppLogLevel(), cfg.GetDatabaseLogLevel())
+		// Initialize loggers with configured levels and format
+		logger.InitializeLoggersWithFormat(cfg.GetAppLogLevel(), cfg.GetDatabaseLogLevel(), cfg.Logging.Format)
 		log := logger.AppLogger()
 
 		if verbose {
@@ -139,8 +139,8 @@ Use --dry-run to preview which downloads would be resumed without actually downl
 func init() {
 	resumeDownloadsCmd.Flags().Bool("dry-run", false, "preview downloads without executing")
 	resumeDownloadsCmd.Flags().Int("limit", 0, "maximum number of downloads to process (0 = no limit)")
-	resumeDownloadsCmd.Flags().Int("parallel", 3, "number of concurrent downloads")
-	resumeDownloadsCmd.Flags().Int("max-retries", 5, "maximum retry attempts (downloads exceeding this will be skipped)")
+	resumeDownloadsCmd.Flags().Int("parallel", 0, "number of concurrent downloads")
+	resumeDownloadsCmd.Flags().Int("max-retries", 0, "maximum retry attempts (downloads exceeding this will be skipped)")
 	resumeDownloadsCmd.Flags().Bool("clean-stale-locks", true, "clean up stale download locks before resuming")
 	resumeDownloadsCmd.Flags().BoolP("verbose", "v", false, "verbose output")
 	resumeDownloadsCmd.Flags().String("service", "all", "filter by service type: all, radarr, sonarr")

@@ -8,17 +8,33 @@ Stalkeer uses a modularized logging system that allows independent control of ap
 
 ### Modular Configuration (Recommended)
 
-Configure application and database log levels independently:
+Configure application and database log levels and output format independently:
 
 ```yaml
 logging:
-  format: json  # json or text
+  format: json  # json or text (default: json)
   
   app:
     level: info  # debug, info, warn, error
   database:
     level: warn  # debug, info, warn, error
 ```
+
+### Log Output Formats
+
+Stalkeer supports two output formats:
+
+- **json**: Structured JSON logs (recommended for production)
+  ```json
+  {"timestamp":"2026-02-01T10:30:45.123456Z","level":"INFO","message":"Processing started","context":{"file":"playlist.m3u","items":100}}
+  ```
+
+- **text**: Human-readable text logs (useful for development)
+  ```
+  2026-02-01T10:30:45.123456Z [INFO] Processing started file=playlist.m3u items=100
+  ```
+
+The format configuration is global and applies to both application and database logging.
 
 ### Legacy Configuration (Deprecated)
 
@@ -77,10 +93,16 @@ func MyFunction() {
 
 ### Initialization
 
-Loggers are automatically initialized when the application starts. The main application initializes loggers after loading configuration:
+Loggers are automatically initialized when the application starts. The main application initializes loggers with the configured format after loading configuration:
 
 ```go
 cfg := config.Get()
+logger.InitializeLoggersWithFormat(cfg.GetAppLogLevel(), cfg.GetDatabaseLogLevel(), cfg.Logging.Format)
+```
+
+For backward compatibility, you can also initialize without format (defaults to JSON):
+
+```go
 logger.InitializeLoggers(cfg.GetAppLogLevel(), cfg.GetDatabaseLogLevel())
 ```
 

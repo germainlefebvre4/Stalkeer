@@ -38,6 +38,14 @@ var (
 	mu             sync.RWMutex
 )
 
+// Format represents the output format of log entries
+type Format string
+
+const (
+	FormatJSON Format = "json"
+	FormatText Format = "text"
+)
+
 // Entry represents a single log entry
 type Entry struct {
 	Timestamp string                 `json:"timestamp"`
@@ -53,6 +61,7 @@ type Logger struct {
 	output    io.Writer
 	minLevel  Level
 	withStack bool
+	format    Format
 }
 
 // Config holds logger configuration
@@ -60,6 +69,7 @@ type Config struct {
 	Output    io.Writer
 	MinLevel  Level
 	WithStack bool
+	Format    Format
 }
 
 // New creates a new logger with the given configuration
@@ -70,11 +80,15 @@ func New(cfg Config) *Logger {
 	if cfg.MinLevel == "" {
 		cfg.MinLevel = LevelInfo
 	}
+	if cfg.Format == "" {
+		cfg.Format = FormatJSON
+	}
 
 	return &Logger{
 		output:    cfg.Output,
 		minLevel:  cfg.MinLevel,
 		withStack: cfg.WithStack,
+		format:    cfg.Format,
 	}
 }
 
@@ -84,6 +98,7 @@ func Default() *Logger {
 		Output:    os.Stdout,
 		MinLevel:  LevelInfo,
 		WithStack: false,
+		Format:    FormatJSON,
 	})
 }
 
@@ -94,6 +109,19 @@ func NewWithLevel(level string) *Logger {
 		Output:    os.Stdout,
 		MinLevel:  logLevel,
 		WithStack: logLevel == LevelDebug,
+		Format:    FormatJSON,
+	})
+}
+
+// NewWithLevelAndFormat creates a new logger with specific level and format
+func NewWithLevelAndFormat(level, format string) *Logger {
+	logLevel := parseLevel(level)
+	logFormat := parseFormat(format)
+	return New(Config{
+		Output:    os.Stdout,
+		MinLevel:  logLevel,
+		WithStack: logLevel == LevelDebug,
+		Format:    logFormat,
 	})
 }
 
@@ -160,6 +188,15 @@ func InitializeLoggers(appLevel, dbLevel string) {
 	databaseLogger = NewWithLevel(dbLevel)
 }
 
+// InitializeLoggersWithFormat initializes both app and database loggers with specified levels and format
+func InitializeLoggersWithFormat(appLevel, dbLevel, format string) {
+	mu.Lock()
+	defer mu.Unlock()
+
+	appLogger = NewWithLevelAndFormat(appLevel, format)
+	databaseLogger = NewWithLevelAndFormat(dbLevel, format)
+}
+
 // parseLevel converts a string log level to a Level type
 func parseLevel(level string) Level {
 	switch level {
@@ -173,6 +210,18 @@ func parseLevel(level string) Level {
 		return LevelError
 	default:
 		return LevelInfo
+	}
+}
+
+// parseFormat converts a string format to a Format type
+func parseFormat(format string) Format {
+	switch format {
+	case "json":
+		return FormatJSON
+	case "text":
+		return FormatText
+	default:
+		return FormatJSON
 	}
 }
 
@@ -244,8 +293,42 @@ func (l *Logger) log(level Level, msg string, context map[string]interface{}, er
 		}
 	}
 
-	data, _ := json.Marshal(entry)
-	fmt.Fprintln(l.output, string(data))
+	if l.format == FormatText {
+		fmt.Fprintln(l.output, l.formatText(entry))
+	} else {
+		data, _ := json.Marshal(entry)
+		fmt.Fprintln(l.output, string(data))
+	}
+}
+
+// formatText formats an entry as human-readable text
+func (l *Logger) formatText(entry Entry) string {
+	var output string
+
+	// Basic format: timestamp [LEVEL] message
+	output = fmt.Sprintf("%s [%s] %s", entry.Timestamp, entry.Level, entry.Message)
+
+	// Add context fields
+	if len(entry.Context) > 0 {
+		for k, v := range entry.Context {
+			output += fmt.Sprintf(" %s=%v", k, v)
+		}
+	}
+
+	// Add error if present
+	if entry.Error != "" {
+		output += fmt.Sprintf(" error=%q", entry.Error)
+	}
+
+	// Add stack trace if present
+	if len(entry.Stack) > 0 {
+		output += "\nStack trace:"
+		for _, frame := range entry.Stack {
+			output += fmt.Sprintf("\n  %s", frame)
+		}
+	}
+
+	return output
 }
 
 // logContext logs with context values

@@ -465,3 +465,136 @@ func TestDatabaseLogger_Singleton(t *testing.T) {
 		t.Error("expected DatabaseLogger to return the same instance")
 	}
 }
+
+func TestTextFormat(t *testing.T) {
+	var buf bytes.Buffer
+	logger := New(Config{
+		Output:   &buf,
+		MinLevel: LevelInfo,
+		Format:   FormatText,
+	})
+
+	logger.Info("test message")
+
+	output := buf.String()
+	if !strings.Contains(output, "[INFO]") {
+		t.Errorf("expected output to contain [INFO], got: %s", output)
+	}
+	if !strings.Contains(output, "test message") {
+		t.Errorf("expected output to contain message, got: %s", output)
+	}
+	// Should NOT be JSON
+	if strings.HasPrefix(output, "{") {
+		t.Errorf("expected text format, got JSON: %s", output)
+	}
+}
+
+func TestTextFormatWithFields(t *testing.T) {
+	var buf bytes.Buffer
+	logger := New(Config{
+		Output:   &buf,
+		MinLevel: LevelInfo,
+		Format:   FormatText,
+	})
+
+	logger.WithFields(map[string]interface{}{
+		"user_id": 123,
+		"action":  "login",
+	}).Info("user logged in")
+
+	output := buf.String()
+	if !strings.Contains(output, "user_id=123") {
+		t.Errorf("expected output to contain user_id, got: %s", output)
+	}
+	if !strings.Contains(output, "action=login") {
+		t.Errorf("expected output to contain action, got: %s", output)
+	}
+}
+
+func TestTextFormatWithError(t *testing.T) {
+	var buf bytes.Buffer
+	logger := New(Config{
+		Output:   &buf,
+		MinLevel: LevelError,
+		Format:   FormatText,
+	})
+
+	testErr := errors.New("test error")
+	logger.Error("operation failed", testErr)
+
+	output := buf.String()
+	if !strings.Contains(output, "[ERROR]") {
+		t.Errorf("expected output to contain [ERROR], got: %s", output)
+	}
+	if !strings.Contains(output, "error=\"test error\"") {
+		t.Errorf("expected output to contain error, got: %s", output)
+	}
+}
+
+func TestParseFormat(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected Format
+	}{
+		{"json", "json", FormatJSON},
+		{"text", "text", FormatText},
+		{"invalid", "invalid", FormatJSON},
+		{"empty", "", FormatJSON},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := parseFormat(tt.input)
+			if result != tt.expected {
+				t.Errorf("parseFormat(%q) = %v, expected %v", tt.input, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestNewWithLevelAndFormat(t *testing.T) {
+	var buf bytes.Buffer
+	logger := NewWithLevelAndFormat("debug", "text")
+
+	logger.output = &buf // Override output for testing
+
+	logger.Debug("test message")
+
+	output := buf.String()
+	if !strings.Contains(output, "[DEBUG]") {
+		t.Errorf("expected DEBUG level, got: %s", output)
+	}
+	if !strings.Contains(output, "test message") {
+		t.Errorf("expected message, got: %s", output)
+	}
+}
+
+func TestInitializeLoggersWithFormat(t *testing.T) {
+	// Reset
+	mu.Lock()
+	appLogger = nil
+	databaseLogger = nil
+	mu.Unlock()
+
+	InitializeLoggersWithFormat("info", "warn", "text")
+
+	appLog := AppLogger()
+	dbLog := DatabaseLogger()
+
+	if appLog.minLevel != LevelInfo {
+		t.Errorf("expected app logger level INFO, got %s", appLog.minLevel)
+	}
+
+	if dbLog.minLevel != LevelWarn {
+		t.Errorf("expected database logger level WARN, got %s", dbLog.minLevel)
+	}
+
+	if appLog.format != FormatText {
+		t.Errorf("expected app logger format TEXT, got %s", appLog.format)
+	}
+
+	if dbLog.format != FormatText {
+		t.Errorf("expected database logger format TEXT, got %s", dbLog.format)
+	}
+}

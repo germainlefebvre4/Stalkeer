@@ -403,10 +403,30 @@ GET /api/v1/stats       # Get processing statistics
 
 ### Logging Configuration
 
+Stalkeer supports modular logging with independent control for application and database logging:
+
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `logging.level` | string | `info` | Log level (debug, info, warn, error) |
-| `logging.format` | string | `json` | Log format (json, text) |
+| `logging.format` | string | `json` | Log output format (`json` or `text`) |
+| `logging.app.level` | string | `info` | Application log level (`debug`, `info`, `warn`, `error`) |
+| `logging.database.level` | string | `info` | Database log level (`debug`, `info`, `warn`, `error`) |
+| `logging.level` | string | `info` | Legacy fallback log level (deprecated) |
+
+**Formats:**
+- `json`: Structured JSON logs (recommended for production)
+- `text`: Human-readable text logs (useful for development)
+
+**Example:**
+```yaml
+logging:
+  format: json  # or text
+  app:
+    level: info
+  database:
+    level: warn  # Less verbose for DB queries
+```
+
+For more details, see [docs/LOGGING.md](docs/LOGGING.md).
 
 ### API Configuration
 

@@ -244,6 +244,12 @@ func validate() error {
 	// m3u.file_path is optional - can be provided via CLI
 
 	validLevels := map[string]bool{"debug": true, "info": true, "warn": true, "error": true}
+	validFormats := map[string]bool{"json": true, "text": true}
+
+	// Validate logging format if set
+	if cfg.Logging.Format != "" && !validFormats[cfg.Logging.Format] {
+		return fmt.Errorf("logging.format must be one of: json, text")
+	}
 
 	// Validate legacy log level if set
 	if cfg.Logging.Level != "" && !validLevels[cfg.Logging.Level] {

@@ -59,8 +59,8 @@ filters, and statistics.`,
 		}
 		cfg := config.Get()
 
-		// Initialize loggers with configured levels
-		logger.InitializeLoggers(cfg.GetAppLogLevel(), cfg.GetDatabaseLogLevel())
+		// Initialize loggers with configured levels and format
+		logger.InitializeLoggersWithFormat(cfg.GetAppLogLevel(), cfg.GetDatabaseLogLevel(), cfg.Logging.Format)
 		log := logger.AppLogger()
 
 		// Warn about legacy logging configuration
@@ -72,6 +72,7 @@ filters, and statistics.`,
 		log.WithFields(map[string]interface{}{
 			"app_log_level": cfg.GetAppLogLevel(),
 			"db_log_level":  cfg.GetDatabaseLogLevel(),
+			"format":        cfg.Logging.Format,
 		}).Info("Logging initialized")
 
 		// Initialize database
@@ -145,8 +146,8 @@ extraction.`,
 		}
 		cfg := config.Get()
 
-		// Initialize loggers with configured levels
-		logger.InitializeLoggers(cfg.GetAppLogLevel(), cfg.GetDatabaseLogLevel())
+		// Initialize loggers with configured levels and format
+		logger.InitializeLoggersWithFormat(cfg.GetAppLogLevel(), cfg.GetDatabaseLogLevel(), cfg.Logging.Format)
 		log := logger.AppLogger()
 
 		// Warn about legacy logging configuration
