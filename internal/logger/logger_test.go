@@ -337,3 +337,131 @@ func TestMultipleContextValues(t *testing.T) {
 		t.Errorf("expected user_id 'user-456', got %v", entry.Context["user_id"])
 	}
 }
+
+func TestNewWithLevel(t *testing.T) {
+	tests := []struct {
+		level         string
+		expectedLevel Level
+		expectStack   bool
+	}{
+		{"debug", LevelDebug, true},
+		{"info", LevelInfo, false},
+		{"warn", LevelWarn, false},
+		{"error", LevelError, false},
+		{"invalid", LevelInfo, false}, // defaults to info
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.level, func(t *testing.T) {
+			logger := NewWithLevel(tt.level)
+			if logger.minLevel != tt.expectedLevel {
+				t.Errorf("expected level %s, got %s", tt.expectedLevel, logger.minLevel)
+			}
+			if logger.withStack != tt.expectStack {
+				t.Errorf("expected withStack %v, got %v", tt.expectStack, logger.withStack)
+			}
+		})
+	}
+}
+
+func TestParseLevel(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected Level
+	}{
+		{"debug", LevelDebug},
+		{"info", LevelInfo},
+		{"warn", LevelWarn},
+		{"error", LevelError},
+		{"invalid", LevelInfo},
+		{"", LevelInfo},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			level := parseLevel(tt.input)
+			if level != tt.expected {
+				t.Errorf("expected %s, got %s", tt.expected, level)
+			}
+		})
+	}
+}
+
+func TestInitializeLoggers(t *testing.T) {
+	// Reset loggers
+	mu.Lock()
+	appLogger = nil
+	databaseLogger = nil
+	mu.Unlock()
+
+	InitializeLoggers("debug", "warn")
+
+	appLog := AppLogger()
+	dbLog := DatabaseLogger()
+
+	if appLog.minLevel != LevelDebug {
+		t.Errorf("expected app logger level DEBUG, got %s", appLog.minLevel)
+	}
+
+	if dbLog.minLevel != LevelWarn {
+		t.Errorf("expected database logger level WARN, got %s", dbLog.minLevel)
+	}
+}
+
+func TestSetAppLogger(t *testing.T) {
+	customLogger := NewWithLevel("error")
+	SetAppLogger(customLogger)
+
+	retrieved := AppLogger()
+	if retrieved != customLogger {
+		t.Error("expected custom logger to be set")
+	}
+
+	// Cleanup
+	mu.Lock()
+	appLogger = nil
+	mu.Unlock()
+}
+
+func TestSetDatabaseLogger(t *testing.T) {
+	customLogger := NewWithLevel("debug")
+	SetDatabaseLogger(customLogger)
+
+	retrieved := DatabaseLogger()
+	if retrieved != customLogger {
+		t.Error("expected custom database logger to be set")
+	}
+
+	// Cleanup
+	mu.Lock()
+	databaseLogger = nil
+	mu.Unlock()
+}
+
+func TestAppLogger_Singleton(t *testing.T) {
+	// Reset
+	mu.Lock()
+	appLogger = nil
+	mu.Unlock()
+
+	logger1 := AppLogger()
+	logger2 := AppLogger()
+
+	if logger1 != logger2 {
+		t.Error("expected AppLogger to return the same instance")
+	}
+}
+
+func TestDatabaseLogger_Singleton(t *testing.T) {
+	// Reset
+	mu.Lock()
+	databaseLogger = nil
+	mu.Unlock()
+
+	logger1 := DatabaseLogger()
+	logger2 := DatabaseLogger()
+
+	if logger1 != logger2 {
+		t.Error("expected DatabaseLogger to return the same instance")
+	}
+}

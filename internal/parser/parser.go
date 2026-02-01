@@ -48,7 +48,7 @@ type Parser struct {
 func NewParser(filePath string) *Parser {
 	return &Parser{
 		filePath:   filePath,
-		logger:     logger.Default(),
+		logger:     logger.AppLogger(),
 		seenHashes: make(map[string]bool),
 		stats: ParseStats{
 			ErrorsByType: make(map[string]int),

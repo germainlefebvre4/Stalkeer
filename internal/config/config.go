@@ -51,8 +51,18 @@ type FilterDef struct {
 
 // LoggingConfig holds logging settings
 type LoggingConfig struct {
+	// Legacy field (deprecated but supported)
 	Level  string `mapstructure:"level"`
 	Format string `mapstructure:"format"`
+
+	// New modular configuration
+	App      LogLevelConfig `mapstructure:"app"`
+	Database LogLevelConfig `mapstructure:"database"`
+}
+
+// LogLevelConfig represents log level configuration for a specific component
+type LogLevelConfig struct {
+	Level string `mapstructure:"level"` // debug, info, warn, error
 }
 
 // APIConfig holds API server settings
@@ -124,6 +134,8 @@ func Load() error {
 	viper.BindEnv("m3u.update_interval")
 	viper.BindEnv("logging.level")
 	viper.BindEnv("logging.format")
+	viper.BindEnv("logging.app.level")
+	viper.BindEnv("logging.database.level")
 	viper.BindEnv("api.port")
 	viper.BindEnv("tmdb.api_key")
 	viper.BindEnv("tmdb.language")
@@ -222,11 +234,52 @@ func validate() error {
 	// m3u.file_path is optional - can be provided via CLI
 
 	validLevels := map[string]bool{"debug": true, "info": true, "warn": true, "error": true}
-	if !validLevels[cfg.Logging.Level] {
+
+	// Validate legacy log level if set
+	if cfg.Logging.Level != "" && !validLevels[cfg.Logging.Level] {
 		return fmt.Errorf("logging.level must be one of: debug, info, warn, error")
 	}
 
+	// Validate app log level if set
+	if cfg.Logging.App.Level != "" && !validLevels[cfg.Logging.App.Level] {
+		return fmt.Errorf("logging.app.level must be one of: debug, info, warn, error")
+	}
+
+	// Validate database log level if set
+	if cfg.Logging.Database.Level != "" && !validLevels[cfg.Logging.Database.Level] {
+		return fmt.Errorf("logging.database.level must be one of: debug, info, warn, error")
+	}
+
 	return nil
+}
+
+// GetAppLogLevel returns the log level for application logging
+// Priority: logging.app.level → logging.level → "info"
+func (c *Config) GetAppLogLevel() string {
+	if c.Logging.App.Level != "" {
+		return c.Logging.App.Level
+	}
+	if c.Logging.Level != "" {
+		return c.Logging.Level
+	}
+	return "info"
+}
+
+// GetDatabaseLogLevel returns the log level for database logging
+// Priority: logging.database.level → logging.level → "info"
+func (c *Config) GetDatabaseLogLevel() string {
+	if c.Logging.Database.Level != "" {
+		return c.Logging.Database.Level
+	}
+	if c.Logging.Level != "" {
+		return c.Logging.Level
+	}
+	return "info"
+}
+
+// IsUsingLegacyLogging returns true if using deprecated logging.level
+func (c *Config) IsUsingLegacyLogging() bool {
+	return c.Logging.Level != "" && c.Logging.App.Level == "" && c.Logging.Database.Level == ""
 }
 
 func parseDatabaseURL(url string) {

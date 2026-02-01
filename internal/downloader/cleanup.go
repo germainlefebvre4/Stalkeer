@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	tempDirPrefix     = "stalkeer-download-"
+	tempDirPrefix         = "stalkeer-download-"
 	defaultRetentionHours = 24
 )
 
@@ -24,8 +24,8 @@ type CleanupOptions struct {
 
 // CleanupOrphanedTempFiles removes old orphaned temp download directories
 func CleanupOrphanedTempFiles(opts CleanupOptions) error {
-	log := logger.Default()
-	
+	log := logger.AppLogger()
+
 	// Use OS temp if not specified
 	tempDir := opts.TempDir
 	if tempDir == "" {
@@ -40,7 +40,7 @@ func CleanupOrphanedTempFiles(opts CleanupOptions) error {
 	cutoffTime := time.Now().Add(-time.Duration(opts.RetentionHours) * time.Hour)
 
 	log.Info(fmt.Sprintf("Scanning for orphaned temp files in: %s", tempDir))
-	log.Info(fmt.Sprintf("Retention period: %d hours (removing files older than %s)", 
+	log.Info(fmt.Sprintf("Retention period: %d hours (removing files older than %s)",
 		opts.RetentionHours, cutoffTime.Format(time.RFC3339)))
 
 	entries, err := os.ReadDir(tempDir)
@@ -56,7 +56,7 @@ func CleanupOrphanedTempFiles(opts CleanupOptions) error {
 		}
 
 		dirPath := filepath.Join(tempDir, entry.Name())
-		
+
 		// Get directory info
 		info, err := entry.Info()
 		if err != nil {
@@ -71,7 +71,7 @@ func CleanupOrphanedTempFiles(opts CleanupOptions) error {
 		}
 
 		if opts.DryRun {
-			log.Info(fmt.Sprintf("[DRY RUN] Would remove: %s (age: %s)", 
+			log.Info(fmt.Sprintf("[DRY RUN] Would remove: %s (age: %s)",
 				dirPath, time.Since(info.ModTime()).Round(time.Hour)))
 			removed++
 		} else {
@@ -79,7 +79,7 @@ func CleanupOrphanedTempFiles(opts CleanupOptions) error {
 			if err := os.RemoveAll(dirPath); err != nil {
 				log.Error(fmt.Sprintf("Failed to remove %s", dirPath), err)
 			} else {
-				log.Info(fmt.Sprintf("Removed orphaned temp directory: %s (age: %s)", 
+				log.Info(fmt.Sprintf("Removed orphaned temp directory: %s (age: %s)",
 					dirPath, time.Since(info.ModTime()).Round(time.Hour)))
 				removed++
 			}

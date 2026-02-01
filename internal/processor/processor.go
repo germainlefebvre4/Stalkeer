@@ -60,7 +60,7 @@ type Processor struct {
 
 // NewProcessor creates a new processor instance
 func NewProcessor(filePath string) (*Processor, error) {
-	log := logger.Default()
+	log := logger.AppLogger()
 
 	db := database.Get()
 	if db == nil {

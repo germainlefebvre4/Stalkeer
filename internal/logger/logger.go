@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"runtime"
+	"sync"
 	"time"
 )
 
@@ -26,6 +27,15 @@ type contextKey string
 const (
 	requestIDKey contextKey = "request_id"
 	userIDKey    contextKey = "user_id"
+)
+
+// Package-level logger instances
+var (
+	appLogger      *Logger
+	databaseLogger *Logger
+	appOnce        sync.Once
+	dbOnce         sync.Once
+	mu             sync.RWMutex
 )
 
 // Entry represents a single log entry
@@ -75,6 +85,95 @@ func Default() *Logger {
 		MinLevel:  LevelInfo,
 		WithStack: false,
 	})
+}
+
+// NewWithLevel creates a new logger with a specific log level string
+func NewWithLevel(level string) *Logger {
+	logLevel := parseLevel(level)
+	return New(Config{
+		Output:    os.Stdout,
+		MinLevel:  logLevel,
+		WithStack: logLevel == LevelDebug,
+	})
+}
+
+// AppLogger returns the singleton application logger instance
+func AppLogger() *Logger {
+	mu.RLock()
+	if appLogger != nil {
+		mu.RUnlock()
+		return appLogger
+	}
+	mu.RUnlock()
+
+	appOnce.Do(func() {
+		mu.Lock()
+		defer mu.Unlock()
+		appLogger = Default()
+	})
+
+	mu.RLock()
+	defer mu.RUnlock()
+	return appLogger
+}
+
+// DatabaseLogger returns the singleton database logger instance
+func DatabaseLogger() *Logger {
+	mu.RLock()
+	if databaseLogger != nil {
+		mu.RUnlock()
+		return databaseLogger
+	}
+	mu.RUnlock()
+
+	dbOnce.Do(func() {
+		mu.Lock()
+		defer mu.Unlock()
+		databaseLogger = Default()
+	})
+
+	mu.RLock()
+	defer mu.RUnlock()
+	return databaseLogger
+}
+
+// SetAppLogger sets the application logger (primarily for testing)
+func SetAppLogger(logger *Logger) {
+	mu.Lock()
+	defer mu.Unlock()
+	appLogger = logger
+}
+
+// SetDatabaseLogger sets the database logger (primarily for testing)
+func SetDatabaseLogger(logger *Logger) {
+	mu.Lock()
+	defer mu.Unlock()
+	databaseLogger = logger
+}
+
+// InitializeLoggers initializes both app and database loggers with specified levels
+func InitializeLoggers(appLevel, dbLevel string) {
+	mu.Lock()
+	defer mu.Unlock()
+
+	appLogger = NewWithLevel(appLevel)
+	databaseLogger = NewWithLevel(dbLevel)
+}
+
+// parseLevel converts a string log level to a Level type
+func parseLevel(level string) Level {
+	switch level {
+	case "debug":
+		return LevelDebug
+	case "info":
+		return LevelInfo
+	case "warn":
+		return LevelWarn
+	case "error":
+		return LevelError
+	default:
+		return LevelInfo
+	}
 }
 
 // Debug logs a debug message

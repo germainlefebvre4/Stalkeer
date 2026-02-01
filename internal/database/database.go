@@ -5,10 +5,10 @@ import (
 	"time"
 
 	"github.com/glefebvre/stalkeer/internal/config"
+	"github.com/glefebvre/stalkeer/internal/logger"
 	"github.com/glefebvre/stalkeer/internal/models"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
-	"gorm.io/gorm/logger"
 )
 
 var db *gorm.DB
@@ -27,19 +27,12 @@ func Initialize() error {
 		cfg.Database.SSLMode,
 	)
 
-	var logLevel logger.LogLevel
-	switch cfg.Logging.Level {
-	case "debug":
-		logLevel = logger.Info
-	case "error":
-		logLevel = logger.Error
-	default:
-		logLevel = logger.Warn
-	}
+	// Create GORM logger adapter using database log level
+	gormLogger := logger.NewGormAdapter(logger.DatabaseLogger(), cfg.GetDatabaseLogLevel())
 
 	var err error
 	db, err = gorm.Open(postgres.Open(dsn), &gorm.Config{
-		Logger: logger.Default.LogMode(logLevel),
+		Logger: gormLogger,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to connect to database: %w", err)

@@ -33,8 +33,18 @@ filter:
       - "Sample$"
 
 logging:
-  level: info  # debug, info, warn, error
   format: json  # json or text
+  
+  # Modular logging configuration (recommended)
+  # Control application and database logging independently
+  app:
+    level: info  # debug, info, warn, error
+  database:
+    level: warn  # debug, info, warn, error
+  
+  # Legacy configuration (deprecated)
+  # If app/database levels are not set, this fallback will be used
+  # level: info
 
 api:
   port: 8080
@@ -67,5 +77,5 @@ downloads:
   tvshows_path: ./data/downloads/tvshows
   temp_dir: ""  # Empty = use OS temp directory, or specify custom path
   max_parallel: 3  # Number of concurrent downloads
-  timeout: 300  # Download timeout in seconds
+  timeout: 600  # Download timeout in seconds (10 minutes)
   retry_attempts: 3  # Number of retry attempts on failure

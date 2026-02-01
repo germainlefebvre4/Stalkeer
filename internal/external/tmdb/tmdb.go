@@ -17,7 +17,7 @@ import (
 
 const (
 	baseURL        = "https://api.themoviedb.org/3"
-	defaultTimeout = 10 * time.Second
+	defaultTimeout = 30 * time.Second
 )
 
 // Client handles TMDB API interactions
@@ -144,7 +144,7 @@ func NewClient(cfg Config) *Client {
 		httpClient: &http.Client{
 			Timeout: cfg.Timeout,
 		},
-		logger:     logger.Default(),
+		logger:     logger.AppLogger(),
 		circuitBrk: cb,
 	}
 }

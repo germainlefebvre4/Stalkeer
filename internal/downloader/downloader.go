@@ -30,13 +30,13 @@ type DownloadOptions struct {
 
 // DownloadResult contains information about a completed download
 type DownloadResult struct {
-	FilePath      string
-	TempPath      string // Temp path used (for debugging)
-	FileSize      int64
-	Extension     string
-	Duration      time.Duration
-	BytesRead     int64
-	MoveDuration  time.Duration
+	FilePath     string
+	TempPath     string // Temp path used (for debugging)
+	FileSize     int64
+	Extension    string
+	Duration     time.Duration
+	BytesRead    int64
+	MoveDuration time.Duration
 }
 
 // Downloader handles media file downloads
@@ -48,7 +48,7 @@ type Downloader struct {
 // New creates a new Downloader instance
 func New(timeout time.Duration, retryAttempts int) *Downloader {
 	if timeout == 0 {
-		timeout = 300 * time.Second // 5 minutes default
+		timeout = 600 * time.Second // 10 minutes default
 	}
 
 	if retryAttempts == 0 {
@@ -297,101 +297,101 @@ func (pr *progressReader) Read(p []byte) (int, error) {
 
 // detectFileExtension detects file extension from URL or Content-Type header
 func detectFileExtension(url string, contentType string) string {
-// 1. Try URL path
-if ext := filepath.Ext(url); ext != "" {
-// Clean up query parameters if present
-if idx := strings.Index(ext, "?"); idx != -1 {
-ext = ext[:idx]
-}
-if ext != "" {
-return ext
-}
-}
+	// 1. Try URL path
+	if ext := filepath.Ext(url); ext != "" {
+		// Clean up query parameters if present
+		if idx := strings.Index(ext, "?"); idx != -1 {
+			ext = ext[:idx]
+		}
+		if ext != "" {
+			return ext
+		}
+	}
 
-// 2. Try Content-Type mapping
-extMap := map[string]string{
-"video/x-matroska":  ".mkv",
-"video/mp4":         ".mp4",
-"video/x-msvideo":   ".avi",
-"video/quicktime":   ".mov",
-"video/x-flv":       ".flv",
-"video/webm":        ".webm",
-"video/mpeg":        ".mpg",
-"video/3gpp":        ".3gp",
-"video/x-ms-wmv":    ".wmv",
-"application/x-mpegURL": ".m3u8",
-}
+	// 2. Try Content-Type mapping
+	extMap := map[string]string{
+		"video/x-matroska":      ".mkv",
+		"video/mp4":             ".mp4",
+		"video/x-msvideo":       ".avi",
+		"video/quicktime":       ".mov",
+		"video/x-flv":           ".flv",
+		"video/webm":            ".webm",
+		"video/mpeg":            ".mpg",
+		"video/3gpp":            ".3gp",
+		"video/x-ms-wmv":        ".wmv",
+		"application/x-mpegURL": ".m3u8",
+	}
 
-// Clean content type (remove charset, etc.)
-if idx := strings.Index(contentType, ";"); idx != -1 {
-contentType = strings.TrimSpace(contentType[:idx])
-}
+	// Clean content type (remove charset, etc.)
+	if idx := strings.Index(contentType, ";"); idx != -1 {
+		contentType = strings.TrimSpace(contentType[:idx])
+	}
 
-if ext, ok := extMap[contentType]; ok {
-return ext
-}
+	if ext, ok := extMap[contentType]; ok {
+		return ext
+	}
 
-// 3. Default to .mkv
-return ".mkv"
+	// 3. Default to .mkv
+	return ".mkv"
 }
 
 // moveFile moves a file from src to dst, trying rename first, then copy+verify+delete
 func moveFile(src, dst string) error {
-// Try rename first (fast, atomic)
-if err := os.Rename(src, dst); err == nil {
-return nil
-}
+	// Try rename first (fast, atomic)
+	if err := os.Rename(src, dst); err == nil {
+		return nil
+	}
 
-// Fallback: copy + verify + delete (needed for cross-filesystem moves)
-if err := copyFile(src, dst); err != nil {
-return fmt.Errorf("copy failed: %w", err)
-}
+	// Fallback: copy + verify + delete (needed for cross-filesystem moves)
+	if err := copyFile(src, dst); err != nil {
+		return fmt.Errorf("copy failed: %w", err)
+	}
 
-// Verify file sizes match
-srcInfo, err := os.Stat(src)
-if err != nil {
-os.Remove(dst) // Clean up partial copy
-return fmt.Errorf("failed to stat source: %w", err)
-}
+	// Verify file sizes match
+	srcInfo, err := os.Stat(src)
+	if err != nil {
+		os.Remove(dst) // Clean up partial copy
+		return fmt.Errorf("failed to stat source: %w", err)
+	}
 
-dstInfo, err := os.Stat(dst)
-if err != nil {
-os.Remove(dst)
-return fmt.Errorf("failed to stat destination: %w", err)
-}
+	dstInfo, err := os.Stat(dst)
+	if err != nil {
+		os.Remove(dst)
+		return fmt.Errorf("failed to stat destination: %w", err)
+	}
 
-if srcInfo.Size() != dstInfo.Size() {
-os.Remove(dst)
-return fmt.Errorf("file size mismatch after copy: src=%d dst=%d", srcInfo.Size(), dstInfo.Size())
-}
+	if srcInfo.Size() != dstInfo.Size() {
+		os.Remove(dst)
+		return fmt.Errorf("file size mismatch after copy: src=%d dst=%d", srcInfo.Size(), dstInfo.Size())
+	}
 
-// Remove source only after successful copy and verification
-return os.Remove(src)
+	// Remove source only after successful copy and verification
+	return os.Remove(src)
 }
 
 // copyFile copies a file from src to dst
 func copyFile(src, dst string) error {
-srcFile, err := os.Open(src)
-if err != nil {
-return fmt.Errorf("failed to open source: %w", err)
-}
-defer srcFile.Close()
+	srcFile, err := os.Open(src)
+	if err != nil {
+		return fmt.Errorf("failed to open source: %w", err)
+	}
+	defer srcFile.Close()
 
-dstFile, err := os.Create(dst)
-if err != nil {
-return fmt.Errorf("failed to create destination: %w", err)
-}
-defer dstFile.Close()
+	dstFile, err := os.Create(dst)
+	if err != nil {
+		return fmt.Errorf("failed to create destination: %w", err)
+	}
+	defer dstFile.Close()
 
-_, err = io.Copy(dstFile, srcFile)
-if err != nil {
-return fmt.Errorf("failed to copy data: %w", err)
-}
+	_, err = io.Copy(dstFile, srcFile)
+	if err != nil {
+		return fmt.Errorf("failed to copy data: %w", err)
+	}
 
-// Sync to ensure data is written to disk
-if err := dstFile.Sync(); err != nil {
-return fmt.Errorf("failed to sync: %w", err)
-}
+	// Sync to ensure data is written to disk
+	if err := dstFile.Sync(); err != nil {
+		return fmt.Errorf("failed to sync: %w", err)
+	}
 
-return nil
+	return nil
 }

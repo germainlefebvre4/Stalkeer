@@ -52,9 +52,27 @@ filters, and statistics.`,
 		port, _ := cmd.Flags().GetInt("port")
 		address, _ := cmd.Flags().GetString("address")
 
-		// Initialize logger
-		log := logger.Default()
+		// Load configuration
+		if err := config.Load(); err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to load configuration: %v\n", err)
+			os.Exit(1)
+		}
+		cfg := config.Get()
+
+		// Initialize loggers with configured levels
+		logger.InitializeLoggers(cfg.GetAppLogLevel(), cfg.GetDatabaseLogLevel())
+		log := logger.AppLogger()
+
+		// Warn about legacy logging configuration
+		if cfg.IsUsingLegacyLogging() {
+			log.Warn("Using deprecated 'logging.level' configuration. Please migrate to 'logging.app.level' and 'logging.database.level' for better control.")
+		}
+
 		log.Info(fmt.Sprintf("Starting Stalkeer API server on %s:%d", address, port))
+		log.WithFields(map[string]interface{}{
+			"app_log_level": cfg.GetAppLogLevel(),
+			"db_log_level":  cfg.GetDatabaseLogLevel(),
+		}).Info("Logging initialized")
 
 		// Initialize database
 		if err := database.Initialize(); err != nil {
@@ -120,12 +138,27 @@ This command performs full processing including content type detection and metad
 extraction.`,
 	Args: cobra.MaximumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
+		// Load configuration
+		if err := config.Load(); err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to load configuration: %v\n", err)
+			os.Exit(1)
+		}
+		cfg := config.Get()
+
+		// Initialize loggers with configured levels
+		logger.InitializeLoggers(cfg.GetAppLogLevel(), cfg.GetDatabaseLogLevel())
+		log := logger.AppLogger()
+
+		// Warn about legacy logging configuration
+		if cfg.IsUsingLegacyLogging() {
+			log.Warn("Using deprecated 'logging.level' configuration. Please migrate to 'logging.app.level' and 'logging.database.level' for better control.")
+		}
+
 		// Determine file path
 		var filePath string
 		if len(args) > 0 {
 			filePath = args[0]
 		} else {
-			cfg := config.Get()
 			filePath = cfg.M3U.FilePath
 			if filePath == "" {
 				fmt.Fprintln(os.Stderr, "Error: m3u file path must be provided either as CLI argument or in config file")
@@ -304,6 +337,16 @@ var migrateCmd = &cobra.Command{
 	Short: "Run database migrations",
 	Long:  `Initialize or update database schema to the latest version`,
 	Run: func(cmd *cobra.Command, args []string) {
+		// Load configuration
+		if err := config.Load(); err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to load configuration: %v\n", err)
+			os.Exit(1)
+		}
+		cfg := config.Get()
+
+		// Initialize loggers
+		logger.InitializeLoggers(cfg.GetAppLogLevel(), cfg.GetDatabaseLogLevel())
+
 		fmt.Println("Running database migrations...")
 
 		if err := database.Initialize(); err != nil {
@@ -328,7 +371,15 @@ and download matched items from M3U playlist stream URLs.`,
 		force, _ := cmd.Flags().GetBool("force")
 		verbose, _ := cmd.Flags().GetBool("verbose")
 
+		// Load configuration
+		if err := config.Load(); err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to load configuration: %v\n", err)
+			os.Exit(1)
+		}
 		cfg := config.Get()
+
+		// Initialize loggers
+		logger.InitializeLoggers(cfg.GetAppLogLevel(), cfg.GetDatabaseLogLevel())
 
 		// Validate configuration
 		if cfg.Radarr.URL == "" || cfg.Radarr.APIKey == "" {
@@ -457,14 +508,15 @@ and download matched items from M3U playlist stream URLs.`,
 				fmt.Sprintf("%s (%d)", sanitizeFilename(movie.Title), movie.Year),
 				fmt.Sprintf("%s (%d)", sanitizeFilename(movie.Title), movie.Year),
 			)
+			fileExt := filepath.Ext(*processedLine.LineURL)
 
 			if dryRun {
-				fmt.Printf("  🔍 Would download to: %s[extension detected from stream]\n", baseDestPath)
+				fmt.Printf("  🔍 Would download to: %s%s\n", baseDestPath, fileExt)
 				stats.Downloaded++
 				continue
 			}
 
-			fmt.Printf("  ⬇️  Downloading to: %s[extension will be detected]\n", baseDestPath)
+			fmt.Printf("  ⬇️  Downloading to: %s%s\n", baseDestPath, fileExt)
 
 			var lastUpdate time.Time
 			result, err := dl.Download(ctx, downloader.DownloadOptions{
@@ -475,7 +527,7 @@ and download matched items from M3U playlist stream URLs.`,
 				OnProgress: func(downloaded, total int64) {
 					if total > 0 {
 						now := time.Now()
-						if now.Sub(lastUpdate) >= 10*time.Second {
+						if now.Sub(lastUpdate) >= 1*time.Second {
 							pct := float64(downloaded) / float64(total) * 100
 							fmt.Printf("\r  Progress: %.1f%% (%d / %d bytes)", pct, downloaded, total)
 							lastUpdate = now
@@ -516,7 +568,15 @@ and download matched items from M3U playlist stream URLs.`,
 		verbose, _ := cmd.Flags().GetBool("verbose")
 		seriesID, _ := cmd.Flags().GetInt("series-id")
 
+		// Load configuration
+		if err := config.Load(); err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to load configuration: %v\n", err)
+			os.Exit(1)
+		}
 		cfg := config.Get()
+
+		// Initialize loggers
+		logger.InitializeLoggers(cfg.GetAppLogLevel(), cfg.GetDatabaseLogLevel())
 
 		// Validate configuration
 		if cfg.Sonarr.URL == "" || cfg.Sonarr.APIKey == "" {
@@ -678,14 +738,15 @@ and download matched items from M3U playlist stream URLs.`,
 				fmt.Sprintf("Season %02d", episode.SeasonNumber),
 				fmt.Sprintf("%s - S%02dE%02d", sanitizeFilename(series.Title), episode.SeasonNumber, episode.EpisodeNumber),
 			)
+			fileExt := filepath.Ext(*processedLine.LineURL)
 
 			if dryRun {
-				fmt.Printf("  🔍 Would download to: %s[extension detected from stream]\n", baseDestPath)
+				fmt.Printf("  🔍 Would download to: %s%s\n", baseDestPath, fileExt)
 				stats.Downloaded++
 				continue
 			}
 
-			fmt.Printf("  ⬇️  Downloading to: %s[extension will be detected]\n", baseDestPath)
+			fmt.Printf("  ⬇️  Downloading to: %s%s\n", baseDestPath, fileExt)
 
 			var lastUpdate time.Time
 			startTime := time.Now()
@@ -697,7 +758,7 @@ and download matched items from M3U playlist stream URLs.`,
 				OnProgress: func(downloaded, total int64) {
 					if total > 0 {
 						now := time.Now()
-						if now.Sub(lastUpdate) >= 10*time.Second {
+						if now.Sub(lastUpdate) >= 1*time.Second {
 							pct := float64(downloaded) / float64(total) * 100
 							elapsed := now.Sub(startTime)
 							speed := float64(downloaded) / elapsed.Seconds()
@@ -816,8 +877,8 @@ func init() {
 	sonarrCmd.Flags().Int("series-id", 0, "filter to specific Sonarr series ID")
 
 	// Cleanup command flags
-	cleanupCmd.Flags().Bool("dry-run", false, "preview cleanup without deleting files")
-	cleanupCmd.Flags().Int("retention-hours", 24, "delete temp files older than this many hours")
+	// cleanupCmd.Flags().Bool("dry-run", false, "preview cleanup without deleting files")
+	// cleanupCmd.Flags().Int("retention-hours", 24, "delete temp files older than this many hours")
 
 	cobra.OnInitialize(initConfig)
 	rootCmd.AddCommand(versionCmd)
@@ -828,7 +889,7 @@ func init() {
 	rootCmd.AddCommand(migrateCmd)
 	rootCmd.AddCommand(radarrCmd)
 	rootCmd.AddCommand(sonarrCmd)
-	rootCmd.AddCommand(cleanupCmd)
+	// rootCmd.AddCommand(cleanupCmd)
 }
 
 func initConfig() {
