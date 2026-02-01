@@ -1,0 +1,86 @@
+# Git files
+.git
+.gitignore
+.gitattributes
+.github
+
+# Build artifacts
+bin/
+*.exe
+*.dll
+*.so
+*.dylib
+stalkeer
+
+# Test files and coverage
+*.test
+*.out
+coverage.out
+coverage.html
+*_test.go
+
+# Development files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Documentation (not needed in container)
+docs/
+*.md
+!README.md
+
+# Configuration files (mounted at runtime)
+config.yml
+config.yml.example
+
+# Data directories (mounted as volumes)
+data/
+m3u_playlist/
+downloads/
+temp/
+
+# Docker files
+Dockerfile
+.dockerignore
+docker-compose.yml
+docker-compose.*.yml
+
+# CI/CD
+.travis.yml
+.gitlab-ci.yml
+Jenkinsfile
+
+# Logs
+*.log
+logs/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Temporary files
+tmp/
+temp/
+
+# IDE files
+*.sublime-project
+*.sublime-workspace
+
+# OS files
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Dependencies (will be downloaded during build)
+vendor/
+
+# Scripts (not needed in container)
+scripts/
+*.sh
+
+# Makefile
+Makefile

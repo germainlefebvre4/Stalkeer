@@ -20,9 +20,30 @@
 
 ## Quick Start
 
+### Option 1: Docker (Recommended)
+
+The fastest way to get started:
+
+```bash
+# Clone and start
+git clone https://github.com/glefebvre/stalkeer.git
+cd stalkeer
+cp .env.example .env
+docker-compose up -d
+
+# Verify
+curl http://localhost:8080/health
+```
+
+For detailed Docker deployment instructions, see:
+- [Docker Quick Start](DOCKER-QUICKSTART.md) - Get running in 5 minutes
+- [Docker Deployment Guide](docs/DOCKER-DEPLOYMENT.md) - Complete deployment guide
+
+### Option 2: Build from Source
+
 ### Prerequisites
 
-- Go 1.21 or higher
+- Go 1.24 or higher
 - PostgreSQL 12 or higher
 - M3U playlist file
 

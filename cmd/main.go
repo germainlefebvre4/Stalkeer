@@ -75,8 +75,9 @@ filters, and statistics.`,
 			"format":        cfg.Logging.Format,
 		}).Info("Logging initialized")
 
-		// Initialize database
-		if err := database.Initialize(); err != nil {
+		// Initialize database with retry logic for containerized environments
+		log.Info("Connecting to database...")
+		if err := database.InitializeWithRetry(5, 3*time.Second); err != nil {
 			log.WithFields(map[string]interface{}{
 				"error": err,
 			}).Error("failed to initialize database", err)

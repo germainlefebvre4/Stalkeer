@@ -1,0 +1,63 @@
+# Production Docker Compose Override
+# Usage: docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+
+services:
+  postgres:
+    # Production database settings
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-stalkeer}
+      POSTGRES_USER: ${POSTGRES_USER:-stalkeer_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+    # Uncomment to use external volume
+    # volumes:
+    #   - /var/lib/postgresql/stalkeer:/var/lib/postgresql/data
+    restart: always
+    # Resource limits for production
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+  stalkeer:
+    # Production build args
+    build:
+      args:
+        VERSION: ${VERSION:-1.0.0}
+        COMMIT: ${COMMIT:-production}
+        DATE: ${DATE:-}
+    # Don't expose ports directly - use reverse proxy
+    # ports: []
+    environment:
+      # Force production settings
+      - DB_SSLMODE=require
+      - LOG_LEVEL=info
+    restart: always
+    # Production resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '4.0'
+          memory: 4G
+        reservations:
+          cpus: '1.0'
+          memory: 1G
+    # Security options
+    security_opt:
+      - no-new-privileges:true
+    # Read-only root filesystem (commented - may need adjustments)
+    # read_only: true
+    # tmpfs:
+    #   - /tmp
+
+  # Remove development services in production
+  radarr:
+    profiles:
+      - development
+
+  sonarr:
+    profiles:
+      - development

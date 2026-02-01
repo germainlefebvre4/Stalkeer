@@ -13,6 +13,28 @@ import (
 
 var db *gorm.DB
 
+// InitializeWithRetry sets up the database connection with retry logic for container startup
+func InitializeWithRetry(maxRetries int, retryDelay time.Duration) error {
+	var err error
+	for i := 0; i < maxRetries; i++ {
+		err = Initialize()
+		if err == nil {
+			return nil
+		}
+
+		if i < maxRetries-1 {
+			logger.AppLogger().WithFields(map[string]interface{}{
+				"attempt":     i + 1,
+				"max_retries": maxRetries,
+				"retry_in":    retryDelay.String(),
+				"error":       err.Error(),
+			}).Warn("Failed to connect to database, retrying...")
+			time.Sleep(retryDelay)
+		}
+	}
+	return fmt.Errorf("failed to connect to database after %d attempts: %w", maxRetries, err)
+}
+
 // Initialize sets up the database connection and runs migrations
 func Initialize() error {
 	cfg := config.Get()

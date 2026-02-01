@@ -112,6 +112,18 @@ type DownloadsConfig struct {
 
 var cfg *Config
 
+// bindEnvWithAlternatives binds a viper key to environment variables with alternative names
+// This allows supporting both STALKEER_DATABASE_HOST and DB_HOST for the same config key
+func bindEnvWithAlternatives(key string, alternatives ...string) {
+	viper.BindEnv(key)
+	for _, alt := range alternatives {
+		if value := os.Getenv(alt); value != "" {
+			viper.Set(key, value)
+			break
+		}
+	}
+}
+
 // Load reads configuration from file and environment variables
 func Load() error {
 	viper.SetConfigName("config")
@@ -129,28 +141,46 @@ func Load() error {
 	viper.AutomaticEnv()
 
 	// Bind environment variables explicitly for nested config
-	viper.BindEnv("database.host")
-	viper.BindEnv("database.port")
-	viper.BindEnv("database.user")
-	viper.BindEnv("database.password")
-	viper.BindEnv("database.dbname")
-	viper.BindEnv("database.sslmode")
+	// Support both STALKEER_ prefix and Docker-style env vars (DB_HOST, DB_PORT, etc.)
+	bindEnvWithAlternatives("database.host", "DB_HOST")
+	bindEnvWithAlternatives("database.port", "DB_PORT")
+	bindEnvWithAlternatives("database.user", "DB_USER")
+	bindEnvWithAlternatives("database.password", "DB_PASSWORD")
+	bindEnvWithAlternatives("database.dbname", "DB_NAME")
+	bindEnvWithAlternatives("database.sslmode", "DB_SSLMODE")
+
 	viper.BindEnv("m3u.file_path")
 	viper.BindEnv("m3u.update_interval")
-	viper.BindEnv("logging.level")
+
+	bindEnvWithAlternatives("logging.level", "LOG_LEVEL")
 	viper.BindEnv("logging.format")
 	viper.BindEnv("logging.app.level")
 	viper.BindEnv("logging.database.level")
-	viper.BindEnv("api.port")
-	viper.BindEnv("tmdb.api_key")
+
+	bindEnvWithAlternatives("api.port", "API_PORT")
+
+	bindEnvWithAlternatives("tmdb.api_key", "TMDB_API_KEY")
 	viper.BindEnv("tmdb.language")
 	viper.BindEnv("tmdb.enabled")
-	viper.BindEnv("radarr.url")
-	viper.BindEnv("radarr.api_key")
+
+	bindEnvWithAlternatives("radarr.url", "RADARR_URL")
+	bindEnvWithAlternatives("radarr.api_key", "RADARR_API_KEY")
 	viper.BindEnv("radarr.enabled")
-	viper.BindEnv("sonarr.url")
-	viper.BindEnv("sonarr.api_key")
+	viper.BindEnv("radarr.sync_interval")
+	viper.BindEnv("radarr.quality_profile_id")
+
+	bindEnvWithAlternatives("sonarr.url", "SONARR_URL")
+	bindEnvWithAlternatives("sonarr.api_key", "SONARR_API_KEY")
 	viper.BindEnv("sonarr.enabled")
+	viper.BindEnv("sonarr.sync_interval")
+	viper.BindEnv("sonarr.quality_profile_id")
+
+	viper.BindEnv("downloads.movies_path")
+	viper.BindEnv("downloads.tvshows_path")
+	viper.BindEnv("downloads.temp_dir")
+	viper.BindEnv("downloads.max_parallel")
+	viper.BindEnv("downloads.timeout")
+	viper.BindEnv("downloads.retry_attempts")
 
 	// Special handling for DATABASE_URL
 	if dbURL := os.Getenv("DATABASE_URL"); dbURL != "" {
