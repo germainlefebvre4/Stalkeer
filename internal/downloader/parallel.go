@@ -37,6 +37,18 @@ func NewParallel(timeout time.Duration, retryAttempts int, concurrency int) *Par
 	}
 }
 
+// NewParallelWithDownloader creates a new parallel downloader with an existing downloader instance
+func NewParallelWithDownloader(downloader *Downloader, concurrency int) *ParallelDownloader {
+	if concurrency <= 0 {
+		concurrency = 3
+	}
+
+	return &ParallelDownloader{
+		downloader:  downloader,
+		concurrency: concurrency,
+	}
+}
+
 // DownloadBatch downloads multiple files in parallel
 // Returns a channel of results and starts processing immediately
 func (pd *ParallelDownloader) DownloadBatch(ctx context.Context, jobs []DownloadJob) <-chan DownloadJobResult {

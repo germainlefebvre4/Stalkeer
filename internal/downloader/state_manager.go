@@ -238,6 +238,9 @@ func (sm *StateManager) GetIncompleteDownloads(ctx context.Context, maxRetries i
 
 	// Build query for incomplete downloads
 	query := sm.db.WithContext(ctx).
+		Preload("ProcessedLines").
+		Preload("ProcessedLines.Movie").
+		Preload("ProcessedLines.TVShow").
 		Where("status IN ?", []string{
 			string(models.DownloadStatusPending),
 			string(models.DownloadStatusDownloading),

@@ -3,8 +3,11 @@ package downloader
 import (
 	"context"
 	"fmt"
+	"path/filepath"
+	"strings"
 	"time"
 
+	"github.com/glefebvre/stalkeer/internal/config"
 	"github.com/glefebvre/stalkeer/internal/logger"
 	"github.com/glefebvre/stalkeer/internal/models"
 )
@@ -63,13 +66,16 @@ func (rh *ResumeHelper) GetIncompleteDownloads(ctx context.Context, opts ResumeO
 
 	// Filter by content type if specified
 	if opts.ContentType != nil {
-		var filtered []models.DownloadInfo
-		for _, download := range downloads {
-			// Would need to check associated ProcessedLine content type
-			// For now, we'll skip this filtering
-			filtered = append(filtered, download)
+		normalized := normalizeContentType(*opts.ContentType)
+		if normalized != "" {
+			var filtered []models.DownloadInfo
+			for _, download := range downloads {
+				if hasContentType(&download, normalized) {
+					filtered = append(filtered, download)
+				}
+			}
+			downloads = filtered
 		}
-		downloads = filtered
 	}
 
 	if opts.Verbose {
@@ -109,25 +115,282 @@ func (rh *ResumeHelper) ResumeDownloads(ctx context.Context, opts ResumeOptions)
 		"dry_run": opts.DryRun,
 	}).Info("processing incomplete downloads")
 
+	cfg := config.Get()
+	parallel := opts.Parallel
+	if parallel <= 0 {
+		parallel = cfg.Downloads.MaxParallel
+	}
+	if parallel <= 0 {
+		parallel = 3
+	}
+
 	if opts.DryRun {
-		// In dry-run mode, just list downloads
 		for _, download := range downloads {
-			rh.logDownloadInfo(&download, opts.Verbose)
+			if err := rh.logDownloadPlan(&download, cfg, opts); err != nil {
+				stats.Skipped++
+			}
 		}
 		stats.EndTime = time.Now()
 		return stats, nil
 	}
 
-	// Process downloads
-	// For now, we'll log the downloads that would be processed
-	// Full implementation would integrate with parallel downloader
-	for _, download := range downloads {
-		rh.logDownloadInfo(&download, opts.Verbose)
-		stats.Skipped++ // Mark as skipped until full implementation
+	jobs, jobInfo, skipped := rh.buildDownloadJobs(downloads, cfg, opts)
+	stats.Skipped += skipped
+	if len(jobs) == 0 {
+		log.Info("no eligible downloads to resume")
+		stats.EndTime = time.Now()
+		return stats, nil
+	}
+
+	log.WithFields(map[string]interface{}{
+		"count":       len(jobs),
+		"parallel":    parallel,
+		"skipped":     stats.Skipped,
+		"contentType": opts.ContentType,
+	}).Info("starting resume downloads")
+
+	parallelDownloader := NewParallelWithDownloader(rh.downloader, parallel)
+	results := parallelDownloader.DownloadBatch(ctx, jobs)
+
+	for result := range results {
+		info, ok := jobInfo[result.JobID]
+		if !ok {
+			stats.Failed++
+			log.WithFields(map[string]interface{}{
+				"job_id": result.JobID,
+			}).Warn("received result for unknown job")
+			continue
+		}
+
+		if result.Error != nil {
+			stats.Failed++
+			log.WithFields(map[string]interface{}{
+				"download_id": info.downloadID,
+				"title":       info.displayName,
+				"error":       result.Error,
+			}).Error("resume download failed", result.Error)
+			continue
+		}
+
+		stats.Resumed++
+		log.WithFields(map[string]interface{}{
+			"download_id": info.downloadID,
+			"title":       info.displayName,
+			"file_path":   result.Result.FilePath,
+			"file_size":   result.Result.FileSize,
+		}).Info("resume download completed")
 	}
 
 	stats.EndTime = time.Now()
 	return stats, nil
+}
+
+type resumeJobInfo struct {
+	downloadID  uint
+	displayName string
+}
+
+func (rh *ResumeHelper) buildDownloadJobs(downloads []models.DownloadInfo, cfg *config.Config, opts ResumeOptions) ([]DownloadJob, map[int]resumeJobInfo, int) {
+	log := logger.AppLogger()
+	jobs := make([]DownloadJob, 0, len(downloads))
+	jobInfo := make(map[int]resumeJobInfo, len(downloads))
+	skipped := 0
+
+	for _, download := range downloads {
+		processedLine := selectProcessedLine(&download, opts.ContentType)
+		if processedLine == nil {
+			statsMessage := "skipping download without matching processed line"
+			if opts.Verbose {
+				log.WithFields(map[string]interface{}{
+					"download_id": download.ID,
+					"status":      download.Status,
+				}).Warn(statsMessage)
+			}
+			skipped++
+			continue
+		}
+
+		if processedLine.LineURL == nil || *processedLine.LineURL == "" {
+			if opts.Verbose {
+				log.WithFields(map[string]interface{}{
+					"download_id": download.ID,
+					"line_id":     processedLine.ID,
+				}).Warn("skipping download with empty URL")
+			}
+			skipped++
+			continue
+		}
+
+		baseDestPath, displayName, err := rh.buildBaseDestPath(cfg, processedLine, &download)
+		if err != nil {
+			if opts.Verbose {
+				log.WithFields(map[string]interface{}{
+					"download_id": download.ID,
+					"line_id":     processedLine.ID,
+					"error":       err,
+				}).Warn("skipping download due to path build error")
+			}
+			skipped++
+			continue
+		}
+
+		jobID := len(jobs) + 1
+		jobs = append(jobs, DownloadJob{
+			ID: jobID,
+			Options: DownloadOptions{
+				URL:             *processedLine.LineURL,
+				BaseDestPath:    baseDestPath,
+				TempDir:         cfg.Downloads.TempDir,
+				ProcessedLineID: processedLine.ID,
+				OnProgress:      rh.buildProgressLogger(download.ID, displayName, opts.Verbose),
+			},
+		})
+		jobInfo[jobID] = resumeJobInfo{
+			downloadID:  download.ID,
+			displayName: displayName,
+		}
+	}
+
+	return jobs, jobInfo, skipped
+}
+
+func (rh *ResumeHelper) buildBaseDestPath(cfg *config.Config, line *models.ProcessedLine, download *models.DownloadInfo) (string, string, error) {
+	if line.ContentType == models.ContentTypeMovies {
+		if line.Movie != nil {
+			path := buildMovieBasePath(cfg.Downloads.MoviesPath, line.Movie.TMDBTitle, line.Movie.TMDBYear)
+			return path, fmt.Sprintf("%s (%d)", line.Movie.TMDBTitle, line.Movie.TMDBYear), nil
+		}
+	}
+
+	if line.ContentType == models.ContentTypeTVShows {
+		if line.TVShow != nil && line.TVShow.Season != nil && line.TVShow.Episode != nil {
+			path := buildTVShowBasePath(cfg.Downloads.TVShowsPath, line.TVShow.TMDBTitle, *line.TVShow.Season, *line.TVShow.Episode)
+			return path, fmt.Sprintf("%s S%02dE%02d", line.TVShow.TMDBTitle, *line.TVShow.Season, *line.TVShow.Episode), nil
+		}
+	}
+
+	if download.DownloadPath != nil && *download.DownloadPath != "" {
+		return strings.TrimSuffix(*download.DownloadPath, filepath.Ext(*download.DownloadPath)), filepath.Base(*download.DownloadPath), nil
+	}
+
+	return "", "", fmt.Errorf("missing metadata for destination path")
+}
+
+func (rh *ResumeHelper) buildProgressLogger(downloadID uint, displayName string, verbose bool) func(int64, int64) {
+	if !verbose {
+		return nil
+	}
+
+	log := logger.AppLogger()
+	var lastUpdate time.Time
+	return func(downloaded, total int64) {
+		if total <= 0 {
+			return
+		}
+		now := time.Now()
+		if now.Sub(lastUpdate) < 2*time.Second {
+			return
+		}
+		lastUpdate = now
+		progress := float64(downloaded) / float64(total) * 100
+		log.WithFields(map[string]interface{}{
+			"download_id": downloadID,
+			"title":       displayName,
+			"progress":    fmt.Sprintf("%.1f%%", progress),
+			"downloaded":  downloaded,
+			"total":       total,
+		}).Info("resume download progress")
+	}
+}
+
+func (rh *ResumeHelper) logDownloadPlan(download *models.DownloadInfo, cfg *config.Config, opts ResumeOptions) error {
+	log := logger.AppLogger()
+	processedLine := selectProcessedLine(download, opts.ContentType)
+	if processedLine == nil {
+		if opts.Verbose {
+			log.WithFields(map[string]interface{}{
+				"download_id": download.ID,
+			}).Warn("no processed line available for download")
+		}
+		return fmt.Errorf("no processed line")
+	}
+
+	baseDestPath, displayName, err := rh.buildBaseDestPath(cfg, processedLine, download)
+	if err != nil {
+		if opts.Verbose {
+			log.WithFields(map[string]interface{}{
+				"download_id": download.ID,
+				"error":       err,
+			}).Warn("unable to build destination path")
+		}
+		return err
+	}
+
+	fields := map[string]interface{}{
+		"download_id": download.ID,
+		"status":      download.Status,
+		"title":       displayName,
+		"url":         valueOrEmpty(processedLine.LineURL),
+		"dest":        baseDestPath,
+	}
+	if download.BytesDownloaded != nil && download.TotalBytes != nil {
+		progress := float64(*download.BytesDownloaded) / float64(*download.TotalBytes) * 100
+		fields["progress"] = fmt.Sprintf("%.1f%%", progress)
+	}
+
+	log.WithFields(fields).Info("resume download candidate")
+	return nil
+}
+
+func selectProcessedLine(download *models.DownloadInfo, contentType *string) *models.ProcessedLine {
+	if download == nil || len(download.ProcessedLines) == 0 {
+		return nil
+	}
+
+	normalized := ""
+	if contentType != nil {
+		normalized = normalizeContentType(*contentType)
+	}
+
+	for i := range download.ProcessedLines {
+		line := &download.ProcessedLines[i]
+		if normalized != "" && string(line.ContentType) != normalized {
+			continue
+		}
+		return line
+	}
+
+	return nil
+}
+
+func hasContentType(download *models.DownloadInfo, contentType string) bool {
+	if download == nil || contentType == "" {
+		return true
+	}
+	for i := range download.ProcessedLines {
+		if string(download.ProcessedLines[i].ContentType) == contentType {
+			return true
+		}
+	}
+	return false
+}
+
+func normalizeContentType(value string) string {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "movies", "movie", "radarr":
+		return string(models.ContentTypeMovies)
+	case "tvshows", "tvshow", "sonarr", "tv":
+		return string(models.ContentTypeTVShows)
+	default:
+		return ""
+	}
+}
+
+func valueOrEmpty(ptr *string) string {
+	if ptr == nil {
+		return ""
+	}
+	return *ptr
 }
 
 // logDownloadInfo logs information about a download

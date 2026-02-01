@@ -1,8 +1,12 @@
 # Resume Downloads Feature
 
+## Status: ✅ COMPLETE (February 1, 2026)
+
+The resume downloads execution feature is fully implemented and tested. Downloads are now executed automatically, not just identified.
+
 ## Overview
 
-The resume downloads feature provides robust state management for download operations, allowing downloads to be resumed after interruptions from system crashes, network failures, or application restarts.
+The resume downloads feature provides robust state management for download operations, allowing downloads to be resumed after interruptions from system crashes, network failures, or application restarts. The system executes actual downloads using the ParallelDownloader and tracks progress in real-time.
 
 ## Architecture
 
@@ -57,6 +61,9 @@ stalkeer resume-downloads --max-retries 3
 
 # Clean stale locks before resuming
 stalkeer resume-downloads --clean-stale-locks
+
+# Filter by service (accepts radarr/sonarr or movies/tvshows)
+stalkeer resume-downloads --service radarr
 ```
 
 #### Integration with Radarr/Sonarr

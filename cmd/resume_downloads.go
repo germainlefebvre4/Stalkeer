@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/glefebvre/stalkeer/internal/config"
@@ -102,7 +103,12 @@ Use --dry-run to preview which downloads would be resumed without actually downl
 
 		// Filter by service if specified
 		if service != "" && service != "all" {
-			opts.ContentType = &service
+			normalized, err := normalizeServiceFilter(service)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Invalid service filter: %v\n", err)
+				os.Exit(1)
+			}
+			opts.ContentType = &normalized
 		}
 
 		// Resume downloads
@@ -138,4 +144,17 @@ func init() {
 	resumeDownloadsCmd.Flags().Bool("clean-stale-locks", true, "clean up stale download locks before resuming")
 	resumeDownloadsCmd.Flags().BoolP("verbose", "v", false, "verbose output")
 	resumeDownloadsCmd.Flags().String("service", "all", "filter by service type: all, radarr, sonarr")
+}
+
+func normalizeServiceFilter(service string) (string, error) {
+	switch strings.ToLower(service) {
+	case "radarr":
+		return "movies", nil
+	case "sonarr":
+		return "tvshows", nil
+	case "movies", "tvshows":
+		return service, nil
+	default:
+		return "", fmt.Errorf("supported values: all, radarr, sonarr")
+	}
 }
