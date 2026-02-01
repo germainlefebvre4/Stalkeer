@@ -60,3 +60,11 @@ sonarr:
   api_key: your_sonarr_api_key_here
   sync_interval: 3600  # seconds
   quality_profile_id: 1
+
+# Download settings
+downloads:
+  movies_path: ./data/downloads/movies
+  tvshows_path: ./data/downloads/tvshows
+  max_parallel: 3  # Number of concurrent downloads
+  timeout: 300  # Download timeout in seconds
+  retry_attempts: 3  # Number of retry attempts on failure

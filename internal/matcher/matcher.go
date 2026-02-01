@@ -8,6 +8,7 @@ import (
 	"github.com/glefebvre/stalkeer/internal/external/radarr"
 	"github.com/glefebvre/stalkeer/internal/external/sonarr"
 	"github.com/glefebvre/stalkeer/internal/models"
+	"gorm.io/gorm"
 )
 
 // Config holds matcher configuration
@@ -139,6 +140,162 @@ func (m *Matcher) FindBestMovieMatch(line *models.ProcessedLine, movies []radarr
 	}
 
 	return bestMatch
+}
+
+// MatchMovieByTMDB finds a movie in the database by TMDB ID with fallback to title/year matching
+// Returns (movie, processedLine, confidence, error)
+func MatchMovieByTMDB(db *gorm.DB, tmdbID int, title string, year int) (*models.Movie, *models.ProcessedLine, int, error) {
+	// Primary match: exact TMDB ID
+	var movie models.Movie
+	err := db.Where("tmdb_id = ?", tmdbID).First(&movie).Error
+	if err == nil {
+		// Found exact TMDB match, get processed line
+		var processedLine models.ProcessedLine
+		err = db.Where("movie_id = ?", movie.ID).
+			Where("state IN ?", []string{string(models.StateProcessed), string(models.StateFailed)}).
+			Order("created_at DESC").
+			First(&processedLine).Error
+		if err != nil {
+			return nil, nil, 0, err
+		}
+		return &movie, &processedLine, 100, nil
+	}
+
+	// Fallback: title and year fuzzy matching
+	if title == "" || year == 0 {
+		return nil, nil, 0, gorm.ErrRecordNotFound
+	}
+
+	var movies []models.Movie
+	err = db.Where("tmdb_year BETWEEN ? AND ?", year-1, year+1).Find(&movies).Error
+	if err != nil {
+		return nil, nil, 0, err
+	}
+
+	matcher := New(DefaultConfig())
+	var bestMovie *models.Movie
+	var bestScore float64
+
+	normalizedSearchTitle := matcher.normalizeTitle(title)
+
+	for i := range movies {
+		normalizedMovieTitle := matcher.normalizeTitle(movies[i].TMDBTitle)
+		score := matcher.calculateStringSimilarity(normalizedSearchTitle, normalizedMovieTitle)
+
+		// Boost score if years match exactly
+		if movies[i].TMDBYear == year {
+			score = score*0.8 + 0.2
+		}
+
+		if score > bestScore && score >= 0.7 {
+			bestScore = score
+			bestMovie = &movies[i]
+		}
+	}
+
+	if bestMovie == nil {
+		return nil, nil, 0, gorm.ErrRecordNotFound
+	}
+
+	// Get processed line for the best match
+	var processedLine models.ProcessedLine
+	err = db.Where("movie_id = ?", bestMovie.ID).
+		Where("state IN ?", []string{string(models.StateProcessed), string(models.StateFailed)}).
+		Order("created_at DESC").
+		First(&processedLine).Error
+	if err != nil {
+		return nil, nil, 0, err
+	}
+
+	confidence := int(bestScore * 100)
+	return bestMovie, &processedLine, confidence, nil
+}
+
+// MatchTVShowByTMDB finds a TV show episode in the database by TMDB ID, season, and episode
+// Returns (tvshow, processedLine, confidence, error)
+func MatchTVShowByTMDB(db *gorm.DB, tmdbID int, title string, season, episode int) (*models.TVShow, *models.ProcessedLine, int, error) {
+	// Primary match: exact TMDB ID + season + episode
+	var tvshow models.TVShow
+	query := db.Where("tmdb_id = ?", tmdbID)
+	if season > 0 {
+		query = query.Where("season = ?", season)
+	}
+	if episode > 0 {
+		query = query.Where("episode = ?", episode)
+	}
+
+	err := query.First(&tvshow).Error
+	if err == nil {
+		// Found exact match, get processed line
+		var processedLine models.ProcessedLine
+		err = db.Where("tvshow_id = ?", tvshow.ID).
+			Where("state IN ?", []string{string(models.StateProcessed), string(models.StateFailed)}).
+			Order("created_at DESC").
+			First(&processedLine).Error
+		if err != nil {
+			return nil, nil, 0, err
+		}
+		return &tvshow, &processedLine, 100, nil
+	}
+
+	// Fallback: title fuzzy matching with season/episode
+	if title == "" {
+		return nil, nil, 0, gorm.ErrRecordNotFound
+	}
+
+	var tvshows []models.TVShow
+	query = db.Model(&models.TVShow{})
+	if season > 0 {
+		query = query.Where("season = ?", season)
+	}
+	if episode > 0 {
+		query = query.Where("episode = ?", episode)
+	}
+	err = query.Find(&tvshows).Error
+	if err != nil {
+		return nil, nil, 0, err
+	}
+
+	matcher := New(DefaultConfig())
+	var bestShow *models.TVShow
+	var bestScore float64
+
+	normalizedSearchTitle := matcher.normalizeTitle(title)
+
+	for i := range tvshows {
+		normalizedShowTitle := matcher.normalizeTitle(tvshows[i].TMDBTitle)
+		score := matcher.calculateStringSimilarity(normalizedSearchTitle, normalizedShowTitle)
+
+		// Boost score if season/episode match
+		if tvshows[i].Season != nil && season > 0 && *tvshows[i].Season == season {
+			score = score*0.7 + 0.15
+		}
+		if tvshows[i].Episode != nil && episode > 0 && *tvshows[i].Episode == episode {
+			score = score*0.7 + 0.15
+		}
+
+		if score > bestScore && score >= 0.7 {
+			bestScore = score
+			bestShow = &tvshows[i]
+		}
+	}
+
+	if bestShow == nil {
+		return nil, nil, 0, gorm.ErrRecordNotFound
+	}
+
+	// Get processed line for the best match
+	var processedLine models.ProcessedLine
+	err = db.Where("tvshow_id = ?", bestShow.ID).
+		Where("state IN ?", []string{string(models.StateProcessed), string(models.StateFailed)}).
+		Order("created_at DESC").
+		First(&processedLine).Error
+	if err != nil {
+		return nil, nil, 0, err
+	}
+
+	confidence := int(bestScore * 100)
+	return bestShow, &processedLine, confidence, nil
 }
 
 // normalizeTitle normalizes a title for comparison

@@ -77,6 +77,8 @@ services:
     environment:
       - PUID=1000
       - PGID=1000
+      - UID=1000
+      - GID=1000
       - TZ=Etc/UTC
     volumes:
       - ./data/sonarr:/config

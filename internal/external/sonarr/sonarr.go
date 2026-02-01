@@ -105,6 +105,27 @@ func (c *Client) GetMissingSeries(ctx context.Context) ([]Series, error) {
 	return missing, nil
 }
 
+// GetSeriesDetails retrieves detailed information for a specific series
+func (c *Client) GetSeriesDetails(ctx context.Context, id int) (*Series, error) {
+	endpoint := fmt.Sprintf("/api/v3/series/%d", id)
+
+	var series Series
+	err := retry.Do(ctx, c.retryConfig, func() error {
+		s, err := c.getSingleSeries(ctx, endpoint)
+		if err != nil {
+			return err
+		}
+		series = *s
+		return nil
+	}, errors.IsRetryable)
+
+	if err != nil {
+		return nil, errors.ExternalServiceError("sonarr", "failed to get series details", err)
+	}
+
+	return &series, nil
+}
+
 // GetMissingEpisodes retrieves all missing episodes across all series
 func (c *Client) GetMissingEpisodes(ctx context.Context) ([]Episode, error) {
 	endpoint := "/api/v3/wanted/missing?page=1&pageSize=1000"
@@ -185,6 +206,31 @@ func (c *Client) getSeries(ctx context.Context, endpoint string) ([]Series, erro
 	}
 
 	return series, nil
+}
+
+func (c *Client) getSingleSeries(ctx context.Context, endpoint string) (*Series, error) {
+	req, err := c.newRequest(ctx, "GET", endpoint, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("unexpected status code %d: %s", resp.StatusCode, string(body))
+	}
+
+	var series Series
+	if err := json.NewDecoder(resp.Body).Decode(&series); err != nil {
+		return nil, fmt.Errorf("failed to decode response: %w", err)
+	}
+
+	return &series, nil
 }
 
 func (c *Client) getEpisodes(ctx context.Context, endpoint string) ([]Episode, error) {

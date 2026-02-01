@@ -5,14 +5,20 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/glefebvre/stalkeer/internal/api"
 	"github.com/glefebvre/stalkeer/internal/config"
 	"github.com/glefebvre/stalkeer/internal/database"
+	"github.com/glefebvre/stalkeer/internal/downloader"
 	"github.com/glefebvre/stalkeer/internal/dryrun"
+	"github.com/glefebvre/stalkeer/internal/external/radarr"
+	"github.com/glefebvre/stalkeer/internal/external/sonarr"
 	"github.com/glefebvre/stalkeer/internal/logger"
+	"github.com/glefebvre/stalkeer/internal/matcher"
 	"github.com/glefebvre/stalkeer/internal/processor"
+	"github.com/glefebvre/stalkeer/internal/retry"
 	"github.com/glefebvre/stalkeer/internal/shutdown"
 	"github.com/spf13/cobra"
 )
@@ -310,6 +316,425 @@ var migrateCmd = &cobra.Command{
 	},
 }
 
+var radarrCmd = &cobra.Command{
+	Use:   "radarr",
+	Short: "Download missing movies from Radarr",
+	Long: `Fetch missing movies from Radarr, match them against the local database using TMDB metadata,
+and download matched items from M3U playlist stream URLs.`,
+	Run: func(cmd *cobra.Command, args []string) {
+		dryRun, _ := cmd.Flags().GetBool("dry-run")
+		limit, _ := cmd.Flags().GetInt("limit")
+		parallel, _ := cmd.Flags().GetInt("parallel")
+		force, _ := cmd.Flags().GetBool("force")
+		verbose, _ := cmd.Flags().GetBool("verbose")
+
+		cfg := config.Get()
+
+		// Validate configuration
+		if cfg.Radarr.URL == "" || cfg.Radarr.APIKey == "" {
+			fmt.Fprintln(os.Stderr, "Error: Radarr URL and API key must be configured")
+			os.Exit(1)
+		}
+
+		fmt.Println("=== Radarr Download Command ===")
+		if dryRun {
+			fmt.Println("Mode: DRY RUN (no downloads will occur)")
+		}
+		fmt.Printf("Radarr URL: %s\n", cfg.Radarr.URL)
+		if limit > 0 {
+			fmt.Printf("Limit: %d movies\n", limit)
+		}
+		fmt.Printf("Parallel downloads: %d\n", parallel)
+		fmt.Println()
+
+		// Initialize database
+		if err := database.Initialize(); err != nil {
+			fmt.Fprintf(os.Stderr, "Error initializing database: %v\n", err)
+			os.Exit(1)
+		}
+		defer database.Close()
+
+		// Create Radarr client
+		radarrClient := radarr.New(radarr.Config{
+			BaseURL: cfg.Radarr.URL,
+			APIKey:  cfg.Radarr.APIKey,
+			Timeout: time.Duration(cfg.Downloads.Timeout) * time.Second,
+			RetryConfig: retry.Config{
+				MaxAttempts:       cfg.Downloads.RetryAttempts,
+				InitialBackoff:    2 * time.Second,
+				MaxBackoff:        30 * time.Second,
+				BackoffMultiplier: 2.0,
+				JitterFraction:    0.1,
+			},
+		})
+
+		// Fetch missing movies
+		fmt.Println("Fetching missing movies from Radarr...")
+		ctx := context.Background()
+		missingMovies, err := radarrClient.GetMissingMovies(ctx)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error fetching missing movies: %v\n", err)
+			os.Exit(1)
+		}
+
+		fmt.Printf("Found %d missing movies in Radarr\n\n", len(missingMovies))
+
+		if len(missingMovies) == 0 {
+			fmt.Println("No missing movies to download!")
+			return
+		}
+
+		// Apply limit
+		if limit > 0 && limit < len(missingMovies) {
+			missingMovies = missingMovies[:limit]
+			fmt.Printf("Processing first %d movies\n\n", limit)
+		}
+
+		// Match and download
+		stats := struct {
+			Total      int
+			Matched    int
+			NotFound   int
+			Downloaded int
+			Failed     int
+			Skipped    int
+		}{
+			Total: len(missingMovies),
+		}
+
+		db := database.Get()
+		dl := downloader.New(
+			time.Duration(cfg.Downloads.Timeout)*time.Second,
+			cfg.Downloads.RetryAttempts,
+		)
+
+		for i, movie := range missingMovies {
+			fmt.Printf("[%d/%d] Processing: %s (%d)\n", i+1, len(missingMovies), movie.Title, movie.Year)
+
+			// Match against database
+			dbMovie, processedLine, confidence, err := matcher.MatchMovieByTMDB(
+				db, movie.TMDBID, movie.Title, movie.Year,
+			)
+
+			if err != nil {
+				if verbose {
+					fmt.Printf("  ❌ Not found in database (TMDB ID: %d)\n", movie.TMDBID)
+				}
+				stats.NotFound++
+				continue
+			}
+
+			fmt.Printf("  ✓ Matched: %s (%d) - Confidence: %d%%\n", dbMovie.TMDBTitle, dbMovie.TMDBYear, confidence)
+			stats.Matched++
+
+			if processedLine.LineURL == nil || *processedLine.LineURL == "" {
+				if verbose {
+					fmt.Println("  ⚠ No stream URL available")
+				}
+				stats.Skipped++
+				continue
+			}
+
+			// Check if already downloaded (unless force)
+			if !force && processedLine.State == "downloaded" {
+				if verbose {
+					fmt.Println("  ⏭ Already downloaded (use --force to re-download)")
+				}
+				stats.Skipped++
+				continue
+			}
+
+			if dryRun {
+				fmt.Printf("  🔍 Would download from: %s\n", *processedLine.LineURL)
+				stats.Downloaded++
+				continue
+			}
+
+			// Download
+			destPath := filepath.Join(
+				cfg.Downloads.MoviesPath,
+				fmt.Sprintf("%s_%d", sanitizeFilename(movie.Title), movie.Year),
+				"video.mkv",
+			)
+
+			fmt.Printf("  ⬇️  Downloading to: %s\n", destPath)
+
+			result, err := dl.Download(ctx, downloader.DownloadOptions{
+				URL:             *processedLine.LineURL,
+				DestinationPath: destPath,
+				ProcessedLineID: processedLine.ID,
+				OnProgress: func(downloaded, total int64) {
+					if total > 0 {
+						pct := float64(downloaded) / float64(total) * 100
+						fmt.Printf("\r  Progress: %.1f%% (%d / %d bytes)", pct, downloaded, total)
+					}
+				},
+			})
+
+			if err != nil {
+				fmt.Printf("\n  ❌ Download failed: %v\n", err)
+				stats.Failed++
+				continue
+			}
+
+			fmt.Printf("\n  ✅ Downloaded: %s (%.2f MB)\n", result.FilePath, float64(result.FileSize)/(1024*1024))
+			stats.Downloaded++
+		}
+
+		// Print summary
+		fmt.Println("\n=== Download Summary ===")
+		fmt.Printf("Total movies:     %d\n", stats.Total)
+		fmt.Printf("Matched:          %d\n", stats.Matched)
+		fmt.Printf("Not found:        %d\n", stats.NotFound)
+		if dryRun {
+			fmt.Printf("Would download:   %d\n", stats.Downloaded)
+		} else {
+			fmt.Printf("Downloaded:       %d\n", stats.Downloaded)
+		}
+		fmt.Printf("Failed:           %d\n", stats.Failed)
+		fmt.Printf("Skipped:          %d\n", stats.Skipped)
+	},
+}
+
+var sonarrCmd = &cobra.Command{
+	Use:   "sonarr",
+	Short: "Download missing TV episodes from Sonarr",
+	Long: `Fetch missing TV episodes from Sonarr, match them against the local database using TMDB metadata,
+and download matched items from M3U playlist stream URLs.`,
+	Run: func(cmd *cobra.Command, args []string) {
+		dryRun, _ := cmd.Flags().GetBool("dry-run")
+		limit, _ := cmd.Flags().GetInt("limit")
+		parallel, _ := cmd.Flags().GetInt("parallel")
+		force, _ := cmd.Flags().GetBool("force")
+		verbose, _ := cmd.Flags().GetBool("verbose")
+		seriesID, _ := cmd.Flags().GetInt("series-id")
+
+		cfg := config.Get()
+
+		// Validate configuration
+		if cfg.Sonarr.URL == "" || cfg.Sonarr.APIKey == "" {
+			fmt.Fprintln(os.Stderr, "Error: Sonarr URL and API key must be configured")
+			os.Exit(1)
+		}
+
+		fmt.Println("=== Sonarr Download Command ===")
+		if dryRun {
+			fmt.Println("Mode: DRY RUN (no downloads will occur)")
+		}
+		fmt.Printf("Sonarr URL: %s\n", cfg.Sonarr.URL)
+		if seriesID > 0 {
+			fmt.Printf("Series ID filter: %d\n", seriesID)
+		}
+		if limit > 0 {
+			fmt.Printf("Limit: %d episodes\n", limit)
+		}
+		fmt.Printf("Parallel downloads: %d\n", parallel)
+		fmt.Println()
+
+		// Initialize database
+		if err := database.Initialize(); err != nil {
+			fmt.Fprintf(os.Stderr, "Error initializing database: %v\n", err)
+			os.Exit(1)
+		}
+		defer database.Close()
+
+		// Create Sonarr client
+		sonarrClient := sonarr.New(sonarr.Config{
+			BaseURL: cfg.Sonarr.URL,
+			APIKey:  cfg.Sonarr.APIKey,
+			Timeout: time.Duration(cfg.Downloads.Timeout) * time.Second,
+			RetryConfig: retry.Config{
+				MaxAttempts:       cfg.Downloads.RetryAttempts,
+				InitialBackoff:    2 * time.Second,
+				MaxBackoff:        30 * time.Second,
+				BackoffMultiplier: 2.0,
+				JitterFraction:    0.1,
+			},
+		})
+
+		// Fetch missing episodes
+		fmt.Println("Fetching missing episodes from Sonarr...")
+		ctx := context.Background()
+		missingEpisodes, err := sonarrClient.GetMissingEpisodes(ctx)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error fetching missing episodes: %v\n", err)
+			os.Exit(1)
+		}
+
+		// Filter by series ID if specified
+		if seriesID > 0 {
+			filtered := make([]sonarr.Episode, 0)
+			for _, ep := range missingEpisodes {
+				if ep.SeriesID == seriesID {
+					filtered = append(filtered, ep)
+				}
+			}
+			missingEpisodes = filtered
+		}
+
+		fmt.Printf("Found %d missing episodes in Sonarr\n\n", len(missingEpisodes))
+
+		if len(missingEpisodes) == 0 {
+			fmt.Println("No missing episodes to download!")
+			return
+		}
+
+		// Apply limit
+		if limit > 0 && limit < len(missingEpisodes) {
+			missingEpisodes = missingEpisodes[:limit]
+			fmt.Printf("Processing first %d episodes\n\n", limit)
+		}
+
+		// Match and download
+		stats := struct {
+			Total      int
+			Matched    int
+			NotFound   int
+			Downloaded int
+			Failed     int
+			Skipped    int
+		}{
+			Total: len(missingEpisodes),
+		}
+
+		db := database.Get()
+		dl := downloader.New(
+			time.Duration(cfg.Downloads.Timeout)*time.Second,
+			cfg.Downloads.RetryAttempts,
+		)
+
+		// We need to fetch series info for each episode
+		seriesCache := make(map[int]*sonarr.Series)
+
+		for i, episode := range missingEpisodes {
+			// Get series info
+			series, ok := seriesCache[episode.SeriesID]
+			if !ok {
+				s, err := sonarrClient.GetSeriesDetails(ctx, episode.SeriesID)
+				if err != nil {
+					fmt.Printf("[%d/%d] Error fetching series %d: %v\n", i+1, len(missingEpisodes), episode.SeriesID, err)
+					stats.Failed++
+					continue
+				}
+				series = s
+				seriesCache[episode.SeriesID] = series
+			}
+
+			fmt.Printf("[%d/%d] Processing: %s S%02dE%02d - %s\n",
+				i+1, len(missingEpisodes), series.Title, episode.SeasonNumber, episode.EpisodeNumber, episode.Title)
+
+			// Match against database (using TvdbID as proxy for TMDB - may need adjustment)
+			dbShow, processedLine, confidence, err := matcher.MatchTVShowByTMDB(
+				db, series.TvdbID, series.Title, episode.SeasonNumber, episode.EpisodeNumber,
+			)
+
+			if err != nil {
+				if verbose {
+					fmt.Printf("  ❌ Not found in database (TVDB ID: %d, S%02dE%02d)\n",
+						series.TvdbID, episode.SeasonNumber, episode.EpisodeNumber)
+				}
+				stats.NotFound++
+				continue
+			}
+
+			fmt.Printf("  ✓ Matched: %s S%02dE%02d - Confidence: %d%%\n",
+				dbShow.TMDBTitle, *dbShow.Season, *dbShow.Episode, confidence)
+			stats.Matched++
+
+			if processedLine.LineURL == nil || *processedLine.LineURL == "" {
+				if verbose {
+					fmt.Println("  ⚠ No stream URL available")
+				}
+				stats.Skipped++
+				continue
+			}
+
+			// Check if already downloaded (unless force)
+			if !force && processedLine.State == "downloaded" {
+				if verbose {
+					fmt.Println("  ⏭ Already downloaded (use --force to re-download)")
+				}
+				stats.Skipped++
+				continue
+			}
+
+			if dryRun {
+				fmt.Printf("  🔍 Would download from: %s\n", *processedLine.LineURL)
+				stats.Downloaded++
+				continue
+			}
+
+			// Download
+			destPath := filepath.Join(
+				cfg.Downloads.TVShowsPath,
+				sanitizeFilename(series.Title),
+				fmt.Sprintf("S%02d", episode.SeasonNumber),
+				fmt.Sprintf("S%02dE%02d.mkv", episode.SeasonNumber, episode.EpisodeNumber),
+			)
+
+			fmt.Printf("  ⬇️  Downloading to: %s\n", destPath)
+
+			result, err := dl.Download(ctx, downloader.DownloadOptions{
+				URL:             *processedLine.LineURL,
+				DestinationPath: destPath,
+				ProcessedLineID: processedLine.ID,
+				OnProgress: func(downloaded, total int64) {
+					if total > 0 {
+						pct := float64(downloaded) / float64(total) * 100
+						fmt.Printf("\r  Progress: %.1f%% (%d / %d bytes)", pct, downloaded, total)
+					}
+				},
+			})
+
+			if err != nil {
+				fmt.Printf("\n  ❌ Download failed: %v\n", err)
+				stats.Failed++
+				continue
+			}
+
+			fmt.Printf("\n  ✅ Downloaded: %s (%.2f MB)\n", result.FilePath, float64(result.FileSize)/(1024*1024))
+			stats.Downloaded++
+		}
+
+		// Print summary
+		fmt.Println("\n=== Download Summary ===")
+		fmt.Printf("Total episodes:   %d\n", stats.Total)
+		fmt.Printf("Matched:          %d\n", stats.Matched)
+		fmt.Printf("Not found:        %d\n", stats.NotFound)
+		if dryRun {
+			fmt.Printf("Would download:   %d\n", stats.Downloaded)
+		} else {
+			fmt.Printf("Downloaded:       %d\n", stats.Downloaded)
+		}
+		fmt.Printf("Failed:           %d\n", stats.Failed)
+		fmt.Printf("Skipped:          %d\n", stats.Skipped)
+	},
+}
+
+// sanitizeFilename removes invalid characters from filenames
+func sanitizeFilename(name string) string {
+	// Replace invalid filesystem characters with underscores
+	replacer := map[rune]rune{
+		'/':  '_',
+		'\\': '_',
+		':':  '_',
+		'*':  '_',
+		'?':  '_',
+		'"':  '_',
+		'<':  '_',
+		'>':  '_',
+		'|':  '_',
+	}
+
+	result := []rune(name)
+	for i, r := range result {
+		if replacement, ok := replacer[r]; ok {
+			result[i] = replacement
+		}
+	}
+	return string(result)
+}
+
 var configFile string
 
 func init() {
@@ -333,6 +758,21 @@ func init() {
 	// Config command flags
 	configCmd.Flags().Bool("show-secrets", false, "reveal password fields")
 
+	// Radarr command flags
+	radarrCmd.Flags().Bool("dry-run", false, "preview matches without downloading")
+	radarrCmd.Flags().Int("limit", 0, "maximum number of movies to process (0 = no limit)")
+	radarrCmd.Flags().Int("parallel", 3, "number of concurrent downloads")
+	radarrCmd.Flags().Bool("force", false, "re-download existing files")
+	radarrCmd.Flags().BoolP("verbose", "v", false, "verbose output")
+
+	// Sonarr command flags
+	sonarrCmd.Flags().Bool("dry-run", false, "preview matches without downloading")
+	sonarrCmd.Flags().Int("limit", 0, "maximum number of episodes to process (0 = no limit)")
+	sonarrCmd.Flags().Int("parallel", 3, "number of concurrent downloads")
+	sonarrCmd.Flags().Bool("force", false, "re-download existing files")
+	sonarrCmd.Flags().BoolP("verbose", "v", false, "verbose output")
+	sonarrCmd.Flags().Int("series-id", 0, "filter to specific Sonarr series ID")
+
 	cobra.OnInitialize(initConfig)
 	rootCmd.AddCommand(versionCmd)
 	rootCmd.AddCommand(serverCmd)
@@ -340,6 +780,8 @@ func init() {
 	rootCmd.AddCommand(dryrunCmd)
 	rootCmd.AddCommand(configCmd)
 	rootCmd.AddCommand(migrateCmd)
+	rootCmd.AddCommand(radarrCmd)
+	rootCmd.AddCommand(sonarrCmd)
 }
 
 func initConfig() {

@@ -10,14 +10,15 @@ import (
 
 // Config holds the application configuration
 type Config struct {
-	Database DatabaseConfig `mapstructure:"database"`
-	M3U      M3UConfig      `mapstructure:"m3u"`
-	Filter   FilterConfig   `mapstructure:"filter"`
-	Logging  LoggingConfig  `mapstructure:"logging"`
-	API      APIConfig      `mapstructure:"api"`
-	TMDB     TMDBConfig     `mapstructure:"tmdb"`
-	Radarr   RadarrConfig   `mapstructure:"radarr"`
-	Sonarr   SonarrConfig   `mapstructure:"sonarr"`
+	Database  DatabaseConfig  `mapstructure:"database"`
+	M3U       M3UConfig       `mapstructure:"m3u"`
+	Filter    FilterConfig    `mapstructure:"filter"`
+	Logging   LoggingConfig   `mapstructure:"logging"`
+	API       APIConfig       `mapstructure:"api"`
+	TMDB      TMDBConfig      `mapstructure:"tmdb"`
+	Radarr    RadarrConfig    `mapstructure:"radarr"`
+	Sonarr    SonarrConfig    `mapstructure:"sonarr"`
+	Downloads DownloadsConfig `mapstructure:"downloads"`
 }
 
 // DatabaseConfig holds database connection settings
@@ -82,6 +83,15 @@ type SonarrConfig struct {
 	Enabled          bool   `mapstructure:"enabled"`
 	SyncInterval     int    `mapstructure:"sync_interval"`
 	QualityProfileID int    `mapstructure:"quality_profile_id"`
+}
+
+// DownloadsConfig holds download settings
+type DownloadsConfig struct {
+	MoviesPath    string `mapstructure:"movies_path"`
+	TVShowsPath   string `mapstructure:"tvshows_path"`
+	MaxParallel   int    `mapstructure:"max_parallel"`
+	Timeout       int    `mapstructure:"timeout"`
+	RetryAttempts int    `mapstructure:"retry_attempts"`
 }
 
 var cfg *Config
@@ -181,6 +191,14 @@ func setDefaults() {
 	viper.SetDefault("sonarr.enabled", false)
 	viper.SetDefault("sonarr.sync_interval", 3600)
 	viper.SetDefault("sonarr.quality_profile_id", 1)
+
+	// Downloads defaults
+	viper.SetDefault("downloads.movies_path", "./data/downloads/movies")
+	viper.SetDefault("downloads.tvshows_path", "./data/downloads/tvshows")
+	viper.SetDefault("downloads.max_parallel", 3)
+	viper.SetDefault("downloads.timeout", 300)
+	viper.SetDefault("downloads.retry_attempts", 3)
+
 	// Logging defaults
 	viper.SetDefault("logging.level", "info")
 	viper.SetDefault("logging.format", "json")
