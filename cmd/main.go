@@ -746,9 +746,9 @@ and download matched items from M3U playlist stream URLs.`,
 			// Download
 			baseDestPath := filepath.Join(
 				cfg.Downloads.TVShowsPath,
-				sanitizeFilename(series.Title),
+				fmt.Sprintf("%s (%d)", sanitizeFilename(series.Title), series.Year),
 				fmt.Sprintf("Season %01d", episode.SeasonNumber),
-				fmt.Sprintf("%s - S%02dE%02d", sanitizeFilename(series.Title), episode.SeasonNumber, episode.EpisodeNumber),
+				fmt.Sprintf("%s (%d) - S%02dE%02d", sanitizeFilename(series.Title), series.Year, episode.SeasonNumber, episode.EpisodeNumber),
 			)
 			fileExt := filepath.Ext(*processedLine.LineURL)
 

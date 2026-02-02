@@ -33,6 +33,7 @@ type Config struct {
 type Series struct {
 	ID                int       `json:"id"`
 	Title             string    `json:"title"`
+	Year              int       `json:"year"`
 	TvdbID            int       `json:"tvdbId"`
 	Path              string    `json:"path"`
 	Monitored         bool      `json:"monitored"`

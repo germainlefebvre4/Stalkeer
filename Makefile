@@ -130,6 +130,22 @@ db-drop-create:
 db-truncate-tables:
 	PGPASSWORD=postgres psql -h localhost -U postgres -d stalkeer -c "TRUNCATE channels, movies, tvshows, uncategorized, processed_lines, processing_logs, download_info RESTART IDENTITY CASCADE;"
 
+## download-sample-videos: Download sample video files for testing
+download-sample-videos:
+	mkdir -p webserver/html/samples || true
+	if [ ! -f webserver/html/samples/sample_FRENCH_360p.mkv ] ; then curl -s -o webserver/html/samples/sample_FRENCH_360p.mkv https://filesamples.com/samples/video/mkv/sample_640x360.mkv; fi
+	if [ ! -f webserver/html/samples/sample_FRENCH_720p.mkv ] ; then curl -s -o webserver/html/samples/sample_FRENCH_720p.mkv https://filesamples.com/samples/video/mkv/sample_1280x720.mkv; fi
+	if [ ! -f webserver/html/samples/sample_FRENCH_1080p.mkv ] ; then curl -s -o webserver/html/samples/sample_FRENCH_1080p.mkv https://filesamples.com/samples/video/mkv/sample_1920x1080.mkv; fi
+	if [ ! -f webserver/html/samples/sample_FRENCH_360p.mp4 ] ; then curl -s -o webserver/html/samples/sample_FRENCH_360p.mp4 https://filesamples.com/samples/video/mp4/sample_640x360.mp4; fi
+	if [ ! -f webserver/html/samples/sample_FRENCH_720p.mp4 ] ; then curl -s -o webserver/html/samples/sample_FRENCH_720p.mp4 https://filesamples.com/samples/video/mp4/sample_1280x720.mp4; fi
+	if [ ! -f webserver/html/samples/sample_FRENCH_1080p.mp4 ] ; then curl -s -o webserver/html/samples/sample_FRENCH_1080p.mp4 https://filesamples.com/samples/video/mp4/sample_1920x1080.mp4; fi
+
+## prepare-sample-videos: Prepare sample videos for testing
+prepare-sample-videos:
+	@echo "Preparing sample videos for testing..."
+	bash scripts/prepare-samples-videos.sh
+	@echo "Sample videos prepared."
+
 ## help: Display this help message
 help:
 	@echo "Stalkeer Makefile Commands:"

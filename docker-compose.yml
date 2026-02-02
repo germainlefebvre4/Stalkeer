@@ -150,7 +150,6 @@ services:
           cpus: '0.5'
           memory: 512M
 
-
   sonarr-sync:
     build:
       context: .
@@ -164,6 +163,67 @@ services:
       postgres:
         condition: service_healthy
     command: ["./stalkeer", "sonarr", "--config", "/app/config/config.yml"]
+    volumes:
+      # Configuration (use environment-specific config)
+      - ./config.yml:/app/config/config.yml:ro
+      # M3U playlist directory
+      - ./m3u_playlist:/app/m3u_playlist:ro
+      # Downloads directory
+      - ${DOWNLOADS_DIR:-./data/downloads}:/app/data/downloads
+      # Temp directory
+      - ${TEMP_DIR:-./data/temp}:/app/data/temp
+    environment:
+      # Database connection (override config.yml)
+      - DB_HOST=${DB_HOST:-postgres}
+      - DB_PORT=${DB_PORT:-5432}
+      - DB_USER=${DB_USER:-postgres}
+      - DB_PASSWORD=${DB_PASSWORD:-postgres}
+      - DB_NAME=${DB_NAME:-stalkeer}
+      - DB_SSLMODE=${DB_SSLMODE:-disable}
+      
+      # Application settings
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - API_PORT=${API_PORT:-8080}
+      
+      # TMDB API (if needed)
+      - TMDB_API_KEY=${TMDB_API_KEY:-}
+      
+      # Radarr/Sonarr
+      - RADARR_URL=${RADARR_URL:-http://radarr:7878}
+      - RADARR_API_KEY=${RADARR_API_KEY:-}
+      - SONARR_URL=${SONARR_URL:-http://sonarr:8989}
+      - SONARR_API_KEY=${SONARR_API_KEY:-}
+    # healthcheck:
+    #   test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
+    #   interval: 30s
+    #   timeout: 5s
+    #   retries: 3
+    #   start_period: 10s
+    restart: no
+    networks:
+      - stalkeer-network
+    # Resource limits (adjust based on your needs)
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+  resume-downloads:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        VERSION: ${VERSION:-dev}
+        COMMIT: ${COMMIT:-unknown}
+        DATE: ${DATE:-unknown}
+    container_name: stalkeer-resume-downloads
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: ["./stalkeer", "resume-downloads", "--config", "/app/config/config.yml"]
     volumes:
       # Configuration (use environment-specific config)
       - ./config.yml:/app/config/config.yml:ro
@@ -269,39 +329,18 @@ services:
       - stalkeer-network
 
   # DEVELOPMENT purpose only
-  # ## Optional qBittorrent service
-  # qbittorrent:
-  #   image: lscr.io/linuxserver/qbittorrent:latest
-  #   container_name: stalkeer-qbittorrent
-  #   environment:
-  #     - PUID=${PUID:-1000}
-  #     - PGID=${PGID:-1000}
-  #     - TZ=${TZ:-Etc/UTC}
-  #     - WEBUI_PORT=8080
-  #   volumes:
-  #     - ./data/qbittorrent:/config
-  #     - ./data/downloads:/downloads
-  #   ports:
-  #     - "${QBITTORRENT_PORT:-8080}:8080"
-  #     - "6881:6881"
-  #     - "6881:6881/udp"
-  #   restart: unless-stopped
-  #   networks:
-  #     - stalkeer-network
-
-  # DEVELOPMENT purpose only
   # ## Optional web server for streaming (testing)
-  # web:
-  #   image: nginx:alpine
-  #   container_name: stalkeer-web
-  #   ports:
-  #     - "${WEB_PORT:-8008}:80"
-  #   volumes:
-  #     - ./webserver/nginx.conf:/etc/nginx/conf.d/default.conf
-  #     - ./webserver/html:/usr/share/nginx/html
-  #   restart: unless-stopped
-  #   networks:
-  #     - stalkeer-network
+  web:
+    image: nginx:alpine
+    container_name: stalkeer-web
+    ports:
+      - "${WEB_PORT:-8008}:80"
+    volumes:
+      - ./webserver/nginx.conf:/etc/nginx/conf.d/default.conf
+      - ./webserver/html:/usr/share/nginx/html
+    restart: unless-stopped
+    networks:
+      - stalkeer-network
 
 volumes:
   postgres_data:

@@ -78,3 +78,6 @@ data/radarr/
 data/sonarr/
 data/downloads/
 data/postgres/
+
+# Testing files
+webserver/html/
