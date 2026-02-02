@@ -264,8 +264,8 @@ func (rh *ResumeHelper) buildBaseDestPath(cfg *config.Config, line *models.Proce
 
 	if line.ContentType == models.ContentTypeTVShows {
 		if line.TVShow != nil && line.TVShow.Season != nil && line.TVShow.Episode != nil {
-			path := buildTVShowBasePath(cfg.Downloads.TVShowsPath, line.TVShow.TMDBTitle, *line.TVShow.Season, *line.TVShow.Episode)
-			return path, fmt.Sprintf("%s S%02dE%02d", line.TVShow.TMDBTitle, *line.TVShow.Season, *line.TVShow.Episode), nil
+			path := buildTVShowBasePath(cfg.Downloads.TVShowsPath, line.TVShow.TMDBTitle, line.TVShow.TMDBYear, *line.TVShow.Season, *line.TVShow.Episode)
+			return path, fmt.Sprintf("%s (%d) - S%02dE%02d", line.TVShow.TMDBTitle, line.TVShow.TMDBYear, *line.TVShow.Season, *line.TVShow.Episode), nil
 		}
 	}
 

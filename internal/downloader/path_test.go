@@ -17,8 +17,8 @@ func TestBuildMovieBasePath(t *testing.T) {
 
 func TestBuildTVShowBasePath(t *testing.T) {
 	base := "/tvshows"
-	path := buildTVShowBasePath(base, "Breaking:Bad", 1, 2)
-	expected := filepath.Join(base, "Breaking_Bad", "Season 01", "Breaking_Bad - S01E02")
+	path := buildTVShowBasePath(base, "Breaking:Bad", 2008, 1, 2)
+	expected := filepath.Join(base, "Breaking_Bad (2008)", "Season 01", "Breaking_Bad (2008) - S01E02")
 	if path != expected {
 		t.Fatalf("expected %s, got %s", expected, path)
 	}

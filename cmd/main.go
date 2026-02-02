@@ -380,6 +380,11 @@ and download matched items from M3U playlist stream URLs.`,
 		}
 		cfg := config.Get()
 
+		// Override configuration
+		if parallel <= 0 {
+			parallel = cfg.Downloads.MaxParallel
+		}
+
 		// Initialize loggers
 		logger.InitializeLoggers(cfg.GetAppLogLevel(), cfg.GetDatabaseLogLevel())
 
@@ -577,6 +582,11 @@ and download matched items from M3U playlist stream URLs.`,
 		}
 		cfg := config.Get()
 
+		// Override configuration
+		if parallel <= 0 {
+			parallel = cfg.Downloads.MaxParallel
+		}
+
 		// Initialize loggers
 		logger.InitializeLoggers(cfg.GetAppLogLevel(), cfg.GetDatabaseLogLevel())
 
@@ -737,7 +747,7 @@ and download matched items from M3U playlist stream URLs.`,
 			baseDestPath := filepath.Join(
 				cfg.Downloads.TVShowsPath,
 				sanitizeFilename(series.Title),
-				fmt.Sprintf("Season %02d", episode.SeasonNumber),
+				fmt.Sprintf("Season %01d", episode.SeasonNumber),
 				fmt.Sprintf("%s - S%02dE%02d", sanitizeFilename(series.Title), episode.SeasonNumber, episode.EpisodeNumber),
 			)
 			fileExt := filepath.Ext(*processedLine.LineURL)
@@ -866,7 +876,7 @@ func init() {
 	// Radarr command flags
 	radarrCmd.Flags().Bool("dry-run", false, "preview matches without downloading")
 	radarrCmd.Flags().Int("limit", 0, "maximum number of movies to process (0 = no limit)")
-	radarrCmd.Flags().Int("parallel", 3, "number of concurrent downloads")
+	radarrCmd.Flags().Int("parallel", 0, "number of concurrent downloads")
 	radarrCmd.Flags().Bool("force", false, "re-download existing files")
 	radarrCmd.Flags().BoolP("verbose", "v", false, "verbose output")
 	radarrCmd.Flags().Bool("resume", false, "resume incomplete downloads before fetching new items")
@@ -874,7 +884,7 @@ func init() {
 	// Sonarr command flags
 	sonarrCmd.Flags().Bool("dry-run", false, "preview matches without downloading")
 	sonarrCmd.Flags().Int("limit", 0, "maximum number of episodes to process (0 = no limit)")
-	sonarrCmd.Flags().Int("parallel", 3, "number of concurrent downloads")
+	sonarrCmd.Flags().Int("parallel", 0, "number of concurrent downloads")
 	sonarrCmd.Flags().Bool("force", false, "re-download existing files")
 	sonarrCmd.Flags().BoolP("verbose", "v", false, "verbose output")
 	sonarrCmd.Flags().Int("series-id", 0, "filter to specific Sonarr series ID")

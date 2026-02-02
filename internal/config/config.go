@@ -149,7 +149,7 @@ func Load() error {
 	bindEnvWithAlternatives("database.dbname", "DB_NAME")
 	bindEnvWithAlternatives("database.sslmode", "DB_SSLMODE")
 
-	viper.BindEnv("m3u.file_path")
+	bindEnvWithAlternatives("m3u.file_path", "M3U_FILE_PATH")
 	viper.BindEnv("m3u.update_interval")
 
 	bindEnvWithAlternatives("logging.level", "LOG_LEVEL")
@@ -175,12 +175,12 @@ func Load() error {
 	viper.BindEnv("sonarr.sync_interval")
 	viper.BindEnv("sonarr.quality_profile_id")
 
-	viper.BindEnv("downloads.movies_path")
-	viper.BindEnv("downloads.tvshows_path")
-	viper.BindEnv("downloads.temp_dir")
-	viper.BindEnv("downloads.max_parallel")
-	viper.BindEnv("downloads.timeout")
-	viper.BindEnv("downloads.retry_attempts")
+	bindEnvWithAlternatives("downloads.movies_path", "MOVIES_PATH")
+	bindEnvWithAlternatives("downloads.tvshows_path", "TVSHOWS_PATH")
+	bindEnvWithAlternatives("downloads.temp_dir", "TEMP_DIR")
+	bindEnvWithAlternatives("downloads.max_parallel", "MAX_PARALLEL")
+	bindEnvWithAlternatives("downloads.timeout", "DOWNLOAD_TIMEOUT")
+	bindEnvWithAlternatives("downloads.retry_attempts", "RETRY_ATTEMPTS")
 
 	// Special handling for DATABASE_URL
 	if dbURL := os.Getenv("DATABASE_URL"); dbURL != "" {
@@ -243,7 +243,7 @@ func setDefaults() {
 	// Downloads defaults
 	viper.SetDefault("downloads.movies_path", "./data/downloads/movies")
 	viper.SetDefault("downloads.tvshows_path", "./data/downloads/tvshows")
-	viper.SetDefault("downloads.max_parallel", 3)
+	viper.SetDefault("downloads.max_parallel", 0)
 	viper.SetDefault("downloads.timeout", 300)
 	viper.SetDefault("downloads.retry_attempts", 3)
 	viper.SetDefault("downloads.resume_enabled", true)

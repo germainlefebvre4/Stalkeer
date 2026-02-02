@@ -10,10 +10,10 @@ func buildMovieBasePath(basePath, title string, year int) string {
 	return filepath.Join(basePath, dir, dir)
 }
 
-func buildTVShowBasePath(basePath, seriesTitle string, season, episode int) string {
-	seriesDir := sanitizeFilename(seriesTitle)
+func buildTVShowBasePath(basePath, seriesTitle string, year, season, episode int) string {
+	seriesDir := fmt.Sprintf("%s (%d)", sanitizeFilename(seriesTitle), year)
 	seasonDir := fmt.Sprintf("Season %02d", season)
-	fileName := fmt.Sprintf("%s - S%02dE%02d", sanitizeFilename(seriesTitle), season, episode)
+	fileName := fmt.Sprintf("%s (%d) - S%02dE%02d", sanitizeFilename(seriesTitle), year, season, episode)
 	return filepath.Join(basePath, seriesDir, seasonDir, fileName)
 }
 
