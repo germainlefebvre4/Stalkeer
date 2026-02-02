@@ -128,8 +128,11 @@ func (c *Client) GetSeriesDetails(ctx context.Context, id int) (*Series, error) 
 }
 
 // GetMissingEpisodes retrieves all missing episodes across all series
+// Episodes are sorted by series ID, season number, and episode number (ascending)
 func (c *Client) GetMissingEpisodes(ctx context.Context) ([]Episode, error) {
-	endpoint := "/api/v3/wanted/missing?page=1&pageSize=1000"
+	// Use API-side sorting: series.sortTitle sorts by series, then we rely on natural episode ordering
+	// The API will sort episodes within each series by season and episode number by default
+	endpoint := "/api/v3/wanted/missing?page=1&pageSize=1000&sortKey=series.sortTitle&sortDirection=ascending"
 
 	var episodes []Episode
 	err := retry.Do(ctx, c.retryConfig, func() error {
