@@ -55,3 +55,35 @@ http://localhost:8008/movies/987654321098765/9897654321/sample_FRENCH_360p.mkv
 http://localhost:8008/movies/123456789012345/1234567890/sample_FRENCH_360p.mkv
 #EXTINF:-1 tvg-id="" tvg-name="Last Action Hero (SDTV)" tvg-logo="https://image.tmdb.org/t/p/w600_and_h900_bestv2/qRIB09pAqTTlKR2GMmTmkTOc4sG.jpg" group-title="FR: FILMS DISNEY - Action,  Aventure",Last Action Hero (SDTV)
 http://localhost:8008/movies/987654321098765/9897654321/sample_FRENCH_360p_duplicate.mkv
+#EXTINF:-1 tvg-id="" tvg-name="Malcolm S01 E01" tvg-logo="http://ndasat.net:2052/images/cba7a7a0c662eafb6b5b0be5750e101b.jpg" group-title="Séries DISNEY PLUS",Malcolm S01 E01
+http://localhost:8008/series/997956418659965/1593574628/41911.mkv
+#EXTINF:-1 tvg-id="" tvg-name="Malcolm S01 E02" tvg-logo="http://ndasat.net:2052/images/26c4a4ff83220451ff15cef630c6a586.jpg" group-title="Séries DISNEY PLUS",Malcolm S01 E02
+http://localhost:8008/series/997956418659965/1593574628/41912.mkv
+#EXTINF:-1 tvg-id="" tvg-name="Malcolm S01 E03" tvg-logo="http://ndasat.net:2052/images/4908d70c7967e6411a807100c2b20579.jpg" group-title="Séries DISNEY PLUS",Malcolm S01 E03
+http://localhost:8008/series/997956418659965/1593574628/41913.mkv
+#EXTINF:-1 tvg-id="" tvg-name="Malcolm S01 E04" tvg-logo="http://ndasat.net:2052/images/605498cbf07773e2baf9d5b50d7b917d.jpg" group-title="Séries DISNEY PLUS",Malcolm S01 E04
+http://localhost:8008/series/997956418659965/1593574628/41914.mkv
+#EXTINF:-1 tvg-id="" tvg-name="Malcolm S01 E05" tvg-logo="http://ndasat.net:2052/images/b36faf9c995af6a345234037e048461b.jpg" group-title="Séries DISNEY PLUS",Malcolm S01 E05
+http://localhost:8008/series/997956418659965/1593574628/41915.mkv
+#EXTINF:-1 tvg-id="" tvg-name="Malcolm S01 E06" tvg-logo="http://ndasat.net:2052/images/0166c4a98eae4477553d019bd5024a4a.jpg" group-title="Séries DISNEY PLUS",Malcolm S01 E06
+http://localhost:8008/series/997956418659965/1593574628/41916.mkv
+#EXTINF:-1 tvg-id="" tvg-name="Malcolm S01 E07" tvg-logo="http://ndasat.net:2052/images/a0cca5991de6bf0e974833baeb457dad.jpg" group-title="Séries DISNEY PLUS",Malcolm S01 E07
+http://localhost:8008/series/997956418659965/1593574628/41917.mkv
+#EXTINF:-1 tvg-id="" tvg-name="Malcolm S01 E08" tvg-logo="http://ndasat.net:2052/images/4396ca9927ce6089f46e5c6b7c695023.jpg" group-title="Séries DISNEY PLUS",Malcolm S01 E08
+http://localhost:8008/series/997956418659965/1593574628/41918.mkv
+#EXTINF:-1 tvg-id="" tvg-name="Malcolm S01 E09" tvg-logo="http://ndasat.net:2052/images/2a8daea07787983a4328a431a76b556c.jpg" group-title="Séries DISNEY PLUS",Malcolm S01 E09
+http://localhost:8008/series/997956418659965/1593574628/41919.mkv
+#EXTINF:-1 tvg-id="" tvg-name="Malcolm S01 E10" tvg-logo="http://ndasat.net:2052/images/03a6ef0ee998c9a28686b8029f0dac2d.jpg" group-title="Séries DISNEY PLUS",Malcolm S01 E10
+http://localhost:8008/series/997956418659965/1593574628/41920.mkv
+#EXTINF:-1 tvg-id="" tvg-name="Malcolm S01 E11" tvg-logo="http://ndasat.net:2052/images/355b8381a14bf9dd7bcc31b82534650c.jpg" group-title="Séries DISNEY PLUS",Malcolm S01 E11
+http://localhost:8008/series/997956418659965/1593574628/41921.mkv
+#EXTINF:-1 tvg-id="" tvg-name="Malcolm S01 E12" tvg-logo="http://ndasat.net:2052/images/b1133a01da92e8ea2531d8fe06925437.jpg" group-title="Séries DISNEY PLUS",Malcolm S01 E12
+http://localhost:8008/series/997956418659965/1593574628/41922.mkv
+#EXTINF:-1 tvg-id="" tvg-name="Malcolm S01 E13" tvg-logo="http://ndasat.net:2052/images/42b6c57ffbf962cc7439c98217e67b05.jpg" group-title="Séries DISNEY PLUS",Malcolm S01 E13
+http://localhost:8008/series/997956418659965/1593574628/41923.mkv
+#EXTINF:-1 tvg-id="" tvg-name="Malcolm S01 E14" tvg-logo="http://ndasat.net:2052/images/499ea7724d98da8e3f8eb3ea50bde6a4.jpg" group-title="Séries DISNEY PLUS",Malcolm S01 E14
+http://localhost:8008/series/997956418659965/1593574628/41924.mkv
+#EXTINF:-1 tvg-id="" tvg-name="Malcolm S01 E15" tvg-logo="http://ndasat.net:2052/images/fbe3b900ed000bbe99e940633ccedcfe.jpg" group-title="Séries DISNEY PLUS",Malcolm S01 E15
+http://localhost:8008/series/997956418659965/1593574628/41925.mkv
+#EXTINF:-1 tvg-id="" tvg-name="Malcolm S01 E16" tvg-logo="http://ndasat.net:2052/images/6ebc510b2ed8da0b20c60260db7be7e0.jpg" group-title="Séries DISNEY PLUS",Malcolm S01 E16
+http://localhost:8008/series/997956418659965/1593574628/41926.mkv
