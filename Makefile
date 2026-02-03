@@ -133,12 +133,12 @@ db-truncate-tables:
 ## download-sample-videos: Download sample video files for testing
 download-sample-videos:
 	mkdir -p webserver/html/samples || true
-	if [ ! -f webserver/html/samples/sample_FRENCH_360p.mkv ] ; then curl -s -o webserver/html/samples/sample_FRENCH_360p.mkv https://filesamples.com/samples/video/mkv/sample_640x360.mkv; fi
-	if [ ! -f webserver/html/samples/sample_FRENCH_720p.mkv ] ; then curl -s -o webserver/html/samples/sample_FRENCH_720p.mkv https://filesamples.com/samples/video/mkv/sample_1280x720.mkv; fi
-	if [ ! -f webserver/html/samples/sample_FRENCH_1080p.mkv ] ; then curl -s -o webserver/html/samples/sample_FRENCH_1080p.mkv https://filesamples.com/samples/video/mkv/sample_1920x1080.mkv; fi
-	if [ ! -f webserver/html/samples/sample_FRENCH_360p.mp4 ] ; then curl -s -o webserver/html/samples/sample_FRENCH_360p.mp4 https://filesamples.com/samples/video/mp4/sample_640x360.mp4; fi
-	if [ ! -f webserver/html/samples/sample_FRENCH_720p.mp4 ] ; then curl -s -o webserver/html/samples/sample_FRENCH_720p.mp4 https://filesamples.com/samples/video/mp4/sample_1280x720.mp4; fi
-	if [ ! -f webserver/html/samples/sample_FRENCH_1080p.mp4 ] ; then curl -s -o webserver/html/samples/sample_FRENCH_1080p.mp4 https://filesamples.com/samples/video/mp4/sample_1920x1080.mp4; fi
+	if [ ! -f webserver/html/samples/sample_FRENCH_360p.mkv ] ; then curl -sL -o webserver/html/samples/sample_FRENCH_360p.mkv https://github.com/ietf-wg-cellar/matroska-test-files/raw/refs/heads/master/test_files/test1.mkv; fi
+	if [ ! -f webserver/html/samples/sample_FRENCH_720p.mkv ] ; then curl -sL -o webserver/html/samples/sample_FRENCH_720p.mkv https://github.com/ietf-wg-cellar/matroska-test-files/raw/refs/heads/master/test_files/test1.mkv; fi
+	if [ ! -f webserver/html/samples/sample_FRENCH_1080p.mkv ] ; then curl -sL -o webserver/html/samples/sample_FRENCH_1080p.mkv 'https://drive.usercontent.google.com/download?id=0BwxFVkl63-lEWDUzUVUtZEw4cDA&export=download&authuser=0&resourcekey=0-xLf9zGIdfdibsOe8L5JWDg'; fi
+	if [ ! -f webserver/html/samples/sample_FRENCH_360p.mp4 ] ; then curl -sL -o webserver/html/samples/sample_FRENCH_360p.mp4 https://filesamples.com/samples/video/mp4/sample_640x360.mp4; fi
+	if [ ! -f webserver/html/samples/sample_FRENCH_720p.mp4 ] ; then curl -sL -o webserver/html/samples/sample_FRENCH_720p.mp4 http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4; fi
+	if [ ! -f webserver/html/samples/sample_FRENCH_1080p.mp4 ] ; then curl -sL -o webserver/html/samples/sample_FRENCH_1080p.mp4 https://d2qguwbxlx1sbt.cloudfront.net/TextInMotion-VideoSample-1080p.mp4; fi
 
 ## prepare-sample-videos: Prepare sample videos for testing
 prepare-sample-videos:
