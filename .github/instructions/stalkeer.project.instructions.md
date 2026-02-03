@@ -16,6 +16,7 @@ Stalkeer parse Radarr and Sonarr items and download missing items from a m3u pla
 - Provide a REST API to query the movie/tvshows information and allow to filter items based on specific criteria.
 - Parse Radarr and Sonarr items to identify missing movies/tvshows.
 - Download missing items from the m3u playlist via direct links and store them locally.
+- Download the m3u playlist file
 
 ### Specifications
 
@@ -31,6 +32,8 @@ Stalkeer parse Radarr and Sonarr items and download missing items from a m3u pla
 
 ## Applicative Workflows
 
+### Process Workflow
+
 - M3U Parsing Workflow: table `processed_lines`
   - Read the m3u file line by line
   - Parse metadata and stream URLs
@@ -40,3 +43,16 @@ Stalkeer parse Radarr and Sonarr items and download missing items from a m3u pla
   - For each parsed item, query TMDB API
   - Retrieve additional metadata (title, year, poster, overview, genres)
   - Update database records with enriched data
+
+### Sonarr/Radarr Sync Workflow
+
+- Query Sonarr/Radarr API for existing movies/tvshows
+- Compare with database records to identify missing items
+- For missing items, find matching entries in the m3u playlist
+- Download missing items via direct links and store locally
+- Update database records to mark items as downloaded
+
+### M3U Download Workflow
+
+- Download the m3u playlist file (one time) (configurable in `config.yml`)
+- Archive and rotate old m3u files to avoid clutter (keep last 5 files)
