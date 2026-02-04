@@ -10,6 +10,19 @@ M3U_SOURCE="m3u_playlist/sample_template.m3u"
 M3U_DEST="m3u_playlist/sample.m3u"
 cp $M3U_SOURCE $M3U_DEST
 
+# Check m3u source file exists
+if [ ! -f $M3U_SOURCE ] ; then
+  echo " M3U source file $M3U_SOURCE does not exist"
+  exit 1
+fi
+
+# Check sample files exist
+if [ ! -f $ROOT_DIR/webserver/html/samples/sample_FRENCH_720p.mkv ] || [ ! -f $ROOT_DIR/webserver/html/samples/sample_FRENCH_720p.mp4 ] ; then
+  echo " Sample files do not exist in webserver/html/samples/"
+  echo " Please run 'make download-sample-videos' first"
+  exit 1
+fi
+
 echo " Create directories in webserver/html/"
 while read line; do
   echo "  Creating directory webserver/html/$line"

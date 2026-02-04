@@ -33,8 +33,24 @@ type DatabaseConfig struct {
 
 // M3UConfig holds M3U playlist settings
 type M3UConfig struct {
-	FilePath       string `mapstructure:"file_path"`
-	UpdateInterval int    `mapstructure:"update_interval"`
+	FilePath       string            `mapstructure:"file_path"`
+	UpdateInterval int               `mapstructure:"update_interval"`
+	Download       M3UDownloadConfig `mapstructure:"download"`
+}
+
+// M3UDownloadConfig holds M3U download settings
+type M3UDownloadConfig struct {
+	Enabled         bool   `mapstructure:"enabled"`
+	URL             string `mapstructure:"url"`
+	ArchiveDir      string `mapstructure:"archive_dir"`
+	RetentionCount  int    `mapstructure:"retention_count"`
+	MaxFileSizeMB   int64  `mapstructure:"max_file_size_mb"`
+	TimeoutSeconds  int    `mapstructure:"timeout_seconds"`
+	RetryAttempts   int    `mapstructure:"retry_attempts"`
+	AuthUsername    string `mapstructure:"auth_username"`
+	AuthPassword    string `mapstructure:"auth_password"`
+	ScheduleEnabled bool   `mapstructure:"schedule_enabled"`
+	IntervalHours   int    `mapstructure:"interval_hours"`
 }
 
 // FilterConfig holds filter settings
@@ -151,6 +167,17 @@ func Load() error {
 
 	bindEnvWithAlternatives("m3u.file_path", "M3U_FILE_PATH")
 	viper.BindEnv("m3u.update_interval")
+	viper.BindEnv("m3u.download.enabled")
+	bindEnvWithAlternatives("m3u.download.url", "M3U_DOWNLOAD_URL")
+	viper.BindEnv("m3u.download.archive_dir")
+	viper.BindEnv("m3u.download.retention_count")
+	viper.BindEnv("m3u.download.max_file_size_mb")
+	viper.BindEnv("m3u.download.timeout_seconds")
+	viper.BindEnv("m3u.download.retry_attempts")
+	viper.BindEnv("m3u.download.auth_username")
+	viper.BindEnv("m3u.download.auth_password")
+	viper.BindEnv("m3u.download.schedule_enabled")
+	viper.BindEnv("m3u.download.interval_hours")
 
 	bindEnvWithAlternatives("logging.level", "LOG_LEVEL")
 	viper.BindEnv("logging.format")
@@ -229,6 +256,14 @@ func setDefaults() {
 
 	// M3U defaults
 	viper.SetDefault("m3u.update_interval", 3600)
+	viper.SetDefault("m3u.download.enabled", false)
+	viper.SetDefault("m3u.download.archive_dir", "./m3u_playlist")
+	viper.SetDefault("m3u.download.retention_count", 5)
+	viper.SetDefault("m3u.download.max_file_size_mb", 500)
+	viper.SetDefault("m3u.download.timeout_seconds", 300)
+	viper.SetDefault("m3u.download.retry_attempts", 3)
+	viper.SetDefault("m3u.download.schedule_enabled", false)
+	viper.SetDefault("m3u.download.interval_hours", 24)
 
 	// Radarr defaults
 	viper.SetDefault("radarr.enabled", false)

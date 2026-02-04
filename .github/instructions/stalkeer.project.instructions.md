@@ -54,5 +54,5 @@ Stalkeer parse Radarr and Sonarr items and download missing items from a m3u pla
 
 ### M3U Download Workflow
 
-- Download the m3u playlist file (one time) (configurable in `config.yml`)
+- Download the m3u playlist file (one time) (configurable in `config.yml`) to the m3u.file_path location
 - Archive and rotate old m3u files to avoid clutter (keep last 5 files)

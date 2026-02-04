@@ -9,6 +9,7 @@
 ## Features
 
 - 📺 Parse M3U playlist files for movies and TV shows
+- 📥 **M3U Download** - Download and archive M3U playlists from remote URLs with automatic rotation
 - 🎬 **TMDB Integration** - Enrich media metadata with title, year, genres, posters, and more
 - 🗄️ Store media information in PostgreSQL database
 - 🔍 Filter playlist items based on configurable patterns
@@ -149,6 +150,78 @@ export STALKEER_M3U_FILE_PATH=/path/to/playlist.m3u
 ```
 
 ### CLI Commands
+
+#### m3u-download
+
+Download M3U playlist from a remote URL and save it to the configured file path:
+
+```bash
+stalkeer m3u-download [flags]
+
+Flags:
+      --url string     M3U playlist URL (overrides config)
+      --no-archive     skip creating archive copy
+```
+
+The m3u-download command:
+- Downloads M3U playlist from the configured URL or --url flag
+- Validates M3U format before saving
+- Saves to the configured m3u.file_path atomically
+- Creates a timestamped archive copy (unless --no-archive)
+- Automatically rotates old archives based on retention settings
+
+Example usage:
+```bash
+# Download using configured URL
+stalkeer m3u-download
+
+# Download from specific URL
+stalkeer m3u-download --url https://example.com/playlist.m3u
+
+# Download without creating archive
+stalkeer m3u-download --no-archive
+```
+
+#### m3u-list-archives
+
+List all archived M3U playlist files with timestamps and sizes:
+
+```bash
+stalkeer m3u-list-archives
+```
+
+Example output:
+```
+Archived M3U files (./m3u_playlist):
+
+Filename                                 Size         Modified
+--------------------------------------------------------------------------------
+playlist_20260203_230154.054749.m3u      40.96 MB     2026-02-03 23:01:54
+playlist_20260203_225902.373353.m3u      40.96 MB     2026-02-03 22:59:02
+playlist_20260202_120000.000000.m3u      40.95 MB     2026-02-02 12:00:00
+
+Total: 3 archived files
+```
+
+#### m3u-cleanup-archives
+
+Manually trigger rotation of M3U archive files:
+
+```bash
+stalkeer m3u-cleanup-archives [flags]
+
+Flags:
+      --retention int   number of archives to keep (default: use config value)
+```
+
+Example usage:
+```bash
+# Clean up using configured retention count
+stalkeer m3u-cleanup-archives
+
+# Keep only the 3 most recent archives
+stalkeer m3u-cleanup-archives --retention 3
+```
 
 #### process
 
