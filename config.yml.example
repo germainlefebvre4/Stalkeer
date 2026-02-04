@@ -12,6 +12,24 @@ database:
 m3u:
   file_path: /path/to/playlist.m3u  # Optional if provided via CLI argument
   update_interval: 3600  # seconds
+  
+  # M3U playlist download settings
+  download:
+    enabled: false  # Enable automatic M3U playlist downloads
+    url: ""  # Remote M3U playlist URL (HTTP/HTTPS)
+    archive_dir: ./m3u_playlist  # Directory to store archived M3U files
+    retention_count: 5  # Number of archived M3U files to keep
+    max_file_size_mb: 500  # Maximum M3U file size in megabytes
+    timeout_seconds: 300  # Download timeout in seconds (5 minutes)
+    retry_attempts: 3  # Number of retry attempts on download failure
+    
+    # Optional: HTTP authentication
+    # auth_username: ""
+    # auth_password: ""
+    
+    # Optional: Scheduled downloads
+    # schedule_enabled: false  # Enable automatic scheduled downloads
+    # interval_hours: 24  # Download interval in hours
 
 # File-based filters (can be overridden by runtime filters)
 filter:

@@ -25,11 +25,11 @@ http://localhost:8008/movies/987654321098765/9897654321/sample_FRENCH_1080p.mkv
 http://localhost:8008/movies/987654321098765/9897654321/sample_FRENCH_1080p.mkv
 #EXTINF:-1 tvg-id="" tvg-name="Marraine ou presque (FHD MULTI)" tvg-logo="https://image.tmdb.org/t/p/w600_and_h900_bestv2/3RHBuu2v2DoQ4CWuV70RoI05MX3.jpg" group-title="FR: FILMS - Disney+",Marraine ou presque (FHD MULTI)
 http://localhost:8008/movies/987654321098765/9897654321/sample_FRENCH_1080p.mkv
-#EXTINF:-1 tvg-id="" tvg-name="Avengers (2012) (ES)" tvg-logo="http://atlaspro.to:2052/images/a80d84541be0907540be34f477444597.jpg" group-title="ES:Movies - películas",Avengers (2012) (ES)
+#EXTINF:-1 tvg-id="" tvg-name="Avengers (2012) (ES)" tvg-logo="http://mylogo.com/images/a80d84541be0907540be34f477444597.jpg" group-title="ES:Movies - películas",Avengers (2012) (ES)
 http://localhost:8008/movies/987654321098765/9897654321/sample_FRENCH_360p.mkv
-#EXTINF:-1 tvg-id="" tvg-name="The Avengers (2012)" tvg-logo="http://atlaspro.to:2052/images/a5b3cd0c9c8ba8408b168692cbcbc017.jpg" group-title="ES:Movies - películas",The Avengers (2012)
+#EXTINF:-1 tvg-id="" tvg-name="The Avengers (2012)" tvg-logo="http://mylogo.com/images/a5b3cd0c9c8ba8408b168692cbcbc017.jpg" group-title="ES:Movies - películas",The Avengers (2012)
 http://localhost:8008/movies/987654321098765/9897654321/sample_FRENCH_720p.mp4
-#EXTINF:-1 tvg-id="" tvg-name="The Avengers Age of Ultron (2015)" tvg-logo="http://atlaspro.to:2052/images/e475132da235cfa2b8b9e62752efab11.jpg" group-title="ES:Movies - películas",The Avengers Age of Ultron (2015)
+#EXTINF:-1 tvg-id="" tvg-name="The Avengers Age of Ultron (2015)" tvg-logo="http://mylogo.com/images/e475132da235cfa2b8b9e62752efab11.jpg" group-title="ES:Movies - películas",The Avengers Age of Ultron (2015)
 http://localhost:8008/movies/987654321098765/9897654321/sample_FRENCH_1080p.mp4
 #EXTINF:-1 tvg-id="" tvg-name="Band of Brothers : L’Enfer du Pacifique S01 E01" tvg-logo="https://image.tmdb.org/t/p/w600_and_h900_bestv2/tmjca0r0Wam21385kHDjudhDgIW.jpg" group-title="Séries HBO MAX",Band of Brothers : L’Enfer du Pacifique S01 E01
 http://localhost:8008/series/987654321098765/9897654321/sample_FRENCH_720p.mkv
@@ -41,10 +41,10 @@ http://localhost:8008/series/987654321098765/9897654321/sample_FRENCH_720p.mkv
 http://localhost:8008/series/987654321098765/9897654321/sample_FRENCH_720p.mkv
 #EXTINF:-1 tvg-id="" tvg-name="Band of Brothers : L’Enfer du Pacifique S01 E05" tvg-logo="https://image.tmdb.org/t/p/w600_and_h900_bestv2/tmjca0r0Wam21385kHDjudhDgIW.jpg" group-title="Séries HBO MAX",Band of Brothers : L’Enfer du Pacifique S01 E05
 http://localhost:8008/series/987654321098765/9897654321/sample_FRENCH_720p.mkv
-#EXTINF:-1 tvg-id="" tvg-name="Malcolm S01 E01" tvg-logo="http://ndasat.net:2052/images/cba7a7a0c662eafb6b5b0be5750e101b.jpg" group-title="Séries DISNEY PLUS",Malcolm S01 E01
+#EXTINF:-1 tvg-id="" tvg-name="Sons of Anarchy S01 E01" tvg-logo="http://mylogo.com/images/4d9c7d3c79c79382b2f65a208f4ce442.jpg" group-title="Séries DISNEY PLUS",Sons of Anarchy S01 E01
 http://localhost:8008/series/987654321098765/9897654321/sample_FRENCH_360p.mkv
-#EXTINF:-1 tvg-id="" tvg-name="Sons of Anarchy S01 E01" tvg-logo="http://atlaspro.to:2052/images/4d9c7d3c79c79382b2f65a208f4ce442.jpg" group-title="Séries DISNEY PLUS",Sons of Anarchy S01 E01
-http://localhost:8008/series/987654321098765/9897654321/sample_FRENCH_360p.mkv
+#EXTINF:-1 tvg-id="" tvg-name="Sons of Anarchy S01 E02" tvg-logo="http://mylogo.com/images/4d9c7d3c79c79382b2f65a208f4ce442.jpg" group-title="Séries DISNEY PLUS",Sons of Anarchy S01 E02
+http://localhost:8008/series/987654321098765/9897654321/sample_FRENCH_720p.mkv
 #EXTINF:-1 tvg-id="" tvg-name="Cube : Hypercube" tvg-logo="https://image.tmdb.org/t/p/w600_and_h900_bestv2/lq75m1l5AIPEUXZ8IDRiQglHFiw.jpg" group-title="FR: FILMS DISNEY PLUS -  Science-Fiction",Cube : Hypercube
 http://localhost:8008/movies/987654321098765/9897654321/sample_FRENCH_360p.mkv
 #EXTINF:-1 tvg-id="" tvg-name="Last Action Hero (FHD MULTI)" tvg-logo="https://image.tmdb.org/t/p/w600_and_h900_bestv2/qRIB09pAqTTlKR2GMmTmkTOc4sG.jpg" group-title="FR: FILMS DISNEY - Action,  Aventure",Last Action Hero (FHD MULTI)
@@ -55,35 +55,35 @@ http://localhost:8008/movies/987654321098765/9897654321/sample_FRENCH_360p.mkv
 http://localhost:8008/movies/123456789012345/1234567890/sample_FRENCH_360p.mkv
 #EXTINF:-1 tvg-id="" tvg-name="Last Action Hero (SDTV)" tvg-logo="https://image.tmdb.org/t/p/w600_and_h900_bestv2/qRIB09pAqTTlKR2GMmTmkTOc4sG.jpg" group-title="FR: FILMS DISNEY - Action,  Aventure",Last Action Hero (SDTV)
 http://localhost:8008/movies/987654321098765/9897654321/sample_FRENCH_360p_duplicate.mkv
-#EXTINF:-1 tvg-id="" tvg-name="Malcolm S01 E01" tvg-logo="http://ndasat.net:2052/images/cba7a7a0c662eafb6b5b0be5750e101b.jpg" group-title="Séries DISNEY PLUS",Malcolm S01 E01
+#EXTINF:-1 tvg-id="" tvg-name="Malcolm S01 E01" tvg-logo="http://mylogo.com/images/cba7a7a0c662eafb6b5b0be5750e101b.jpg" group-title="Séries DISNEY PLUS",Malcolm S01 E01
 http://localhost:8008/series/997956418659965/1593574628/41911.mkv
-#EXTINF:-1 tvg-id="" tvg-name="Malcolm S01 E02" tvg-logo="http://ndasat.net:2052/images/26c4a4ff83220451ff15cef630c6a586.jpg" group-title="Séries DISNEY PLUS",Malcolm S01 E02
+#EXTINF:-1 tvg-id="" tvg-name="Malcolm S01 E02" tvg-logo="http://mylogo.com/images/26c4a4ff83220451ff15cef630c6a586.jpg" group-title="Séries DISNEY PLUS",Malcolm S01 E02
 http://localhost:8008/series/997956418659965/1593574628/41912.mkv
-#EXTINF:-1 tvg-id="" tvg-name="Malcolm S01 E03" tvg-logo="http://ndasat.net:2052/images/4908d70c7967e6411a807100c2b20579.jpg" group-title="Séries DISNEY PLUS",Malcolm S01 E03
+#EXTINF:-1 tvg-id="" tvg-name="Malcolm S01 E03" tvg-logo="http://mylogo.com/images/4908d70c7967e6411a807100c2b20579.jpg" group-title="Séries DISNEY PLUS",Malcolm S01 E03
 http://localhost:8008/series/997956418659965/1593574628/41913.mkv
-#EXTINF:-1 tvg-id="" tvg-name="Malcolm S01 E04" tvg-logo="http://ndasat.net:2052/images/605498cbf07773e2baf9d5b50d7b917d.jpg" group-title="Séries DISNEY PLUS",Malcolm S01 E04
+#EXTINF:-1 tvg-id="" tvg-name="Malcolm S01 E04" tvg-logo="http://mylogo.com/images/605498cbf07773e2baf9d5b50d7b917d.jpg" group-title="Séries DISNEY PLUS",Malcolm S01 E04
 http://localhost:8008/series/997956418659965/1593574628/41914.mkv
-#EXTINF:-1 tvg-id="" tvg-name="Malcolm S01 E05" tvg-logo="http://ndasat.net:2052/images/b36faf9c995af6a345234037e048461b.jpg" group-title="Séries DISNEY PLUS",Malcolm S01 E05
+#EXTINF:-1 tvg-id="" tvg-name="Malcolm S01 E05" tvg-logo="http://mylogo.com/images/b36faf9c995af6a345234037e048461b.jpg" group-title="Séries DISNEY PLUS",Malcolm S01 E05
 http://localhost:8008/series/997956418659965/1593574628/41915.mkv
-#EXTINF:-1 tvg-id="" tvg-name="Malcolm S01 E06" tvg-logo="http://ndasat.net:2052/images/0166c4a98eae4477553d019bd5024a4a.jpg" group-title="Séries DISNEY PLUS",Malcolm S01 E06
+#EXTINF:-1 tvg-id="" tvg-name="Malcolm S01 E06" tvg-logo="http://mylogo.com/images/0166c4a98eae4477553d019bd5024a4a.jpg" group-title="Séries DISNEY PLUS",Malcolm S01 E06
 http://localhost:8008/series/997956418659965/1593574628/41916.mkv
-#EXTINF:-1 tvg-id="" tvg-name="Malcolm S01 E07" tvg-logo="http://ndasat.net:2052/images/a0cca5991de6bf0e974833baeb457dad.jpg" group-title="Séries DISNEY PLUS",Malcolm S01 E07
+#EXTINF:-1 tvg-id="" tvg-name="Malcolm S01 E07" tvg-logo="http://mylogo.com/images/a0cca5991de6bf0e974833baeb457dad.jpg" group-title="Séries DISNEY PLUS",Malcolm S01 E07
 http://localhost:8008/series/997956418659965/1593574628/41917.mkv
-#EXTINF:-1 tvg-id="" tvg-name="Malcolm S01 E08" tvg-logo="http://ndasat.net:2052/images/4396ca9927ce6089f46e5c6b7c695023.jpg" group-title="Séries DISNEY PLUS",Malcolm S01 E08
+#EXTINF:-1 tvg-id="" tvg-name="Malcolm S01 E08" tvg-logo="http://mylogo.com/images/4396ca9927ce6089f46e5c6b7c695023.jpg" group-title="Séries DISNEY PLUS",Malcolm S01 E08
 http://localhost:8008/series/997956418659965/1593574628/41918.mkv
-#EXTINF:-1 tvg-id="" tvg-name="Malcolm S01 E09" tvg-logo="http://ndasat.net:2052/images/2a8daea07787983a4328a431a76b556c.jpg" group-title="Séries DISNEY PLUS",Malcolm S01 E09
+#EXTINF:-1 tvg-id="" tvg-name="Malcolm S01 E09" tvg-logo="http://mylogo.com/images/2a8daea07787983a4328a431a76b556c.jpg" group-title="Séries DISNEY PLUS",Malcolm S01 E09
 http://localhost:8008/series/997956418659965/1593574628/41919.mkv
-#EXTINF:-1 tvg-id="" tvg-name="Malcolm S01 E10" tvg-logo="http://ndasat.net:2052/images/03a6ef0ee998c9a28686b8029f0dac2d.jpg" group-title="Séries DISNEY PLUS",Malcolm S01 E10
+#EXTINF:-1 tvg-id="" tvg-name="Malcolm S01 E10" tvg-logo="http://mylogo.com/images/03a6ef0ee998c9a28686b8029f0dac2d.jpg" group-title="Séries DISNEY PLUS",Malcolm S01 E10
 http://localhost:8008/series/997956418659965/1593574628/41920.mkv
-#EXTINF:-1 tvg-id="" tvg-name="Malcolm S01 E11" tvg-logo="http://ndasat.net:2052/images/355b8381a14bf9dd7bcc31b82534650c.jpg" group-title="Séries DISNEY PLUS",Malcolm S01 E11
+#EXTINF:-1 tvg-id="" tvg-name="Malcolm S01 E11" tvg-logo="http://mylogo.com/images/355b8381a14bf9dd7bcc31b82534650c.jpg" group-title="Séries DISNEY PLUS",Malcolm S01 E11
 http://localhost:8008/series/997956418659965/1593574628/41921.mkv
-#EXTINF:-1 tvg-id="" tvg-name="Malcolm S01 E12" tvg-logo="http://ndasat.net:2052/images/b1133a01da92e8ea2531d8fe06925437.jpg" group-title="Séries DISNEY PLUS",Malcolm S01 E12
+#EXTINF:-1 tvg-id="" tvg-name="Malcolm S01 E12" tvg-logo="http://mylogo.com/images/b1133a01da92e8ea2531d8fe06925437.jpg" group-title="Séries DISNEY PLUS",Malcolm S01 E12
 http://localhost:8008/series/997956418659965/1593574628/41922.mkv
-#EXTINF:-1 tvg-id="" tvg-name="Malcolm S01 E13" tvg-logo="http://ndasat.net:2052/images/42b6c57ffbf962cc7439c98217e67b05.jpg" group-title="Séries DISNEY PLUS",Malcolm S01 E13
+#EXTINF:-1 tvg-id="" tvg-name="Malcolm S01 E13" tvg-logo="http://mylogo.com/images/42b6c57ffbf962cc7439c98217e67b05.jpg" group-title="Séries DISNEY PLUS",Malcolm S01 E13
 http://localhost:8008/series/997956418659965/1593574628/41923.mkv
-#EXTINF:-1 tvg-id="" tvg-name="Malcolm S01 E14" tvg-logo="http://ndasat.net:2052/images/499ea7724d98da8e3f8eb3ea50bde6a4.jpg" group-title="Séries DISNEY PLUS",Malcolm S01 E14
+#EXTINF:-1 tvg-id="" tvg-name="Malcolm S01 E14" tvg-logo="http://mylogo.com/images/499ea7724d98da8e3f8eb3ea50bde6a4.jpg" group-title="Séries DISNEY PLUS",Malcolm S01 E14
 http://localhost:8008/series/997956418659965/1593574628/41924.mkv
-#EXTINF:-1 tvg-id="" tvg-name="Malcolm S01 E15" tvg-logo="http://ndasat.net:2052/images/fbe3b900ed000bbe99e940633ccedcfe.jpg" group-title="Séries DISNEY PLUS",Malcolm S01 E15
+#EXTINF:-1 tvg-id="" tvg-name="Malcolm S01 E15" tvg-logo="http://mylogo.com/images/fbe3b900ed000bbe99e940633ccedcfe.jpg" group-title="Séries DISNEY PLUS",Malcolm S01 E15
 http://localhost:8008/series/997956418659965/1593574628/41925.mkv
-#EXTINF:-1 tvg-id="" tvg-name="Malcolm S01 E16" tvg-logo="http://ndasat.net:2052/images/6ebc510b2ed8da0b20c60260db7be7e0.jpg" group-title="Séries DISNEY PLUS",Malcolm S01 E16
+#EXTINF:-1 tvg-id="" tvg-name="Malcolm S01 E16" tvg-logo="http://mylogo.com/images/6ebc510b2ed8da0b20c60260db7be7e0.jpg" group-title="Séries DISNEY PLUS",Malcolm S01 E16
 http://localhost:8008/series/997956418659965/1593574628/41926.mkv
