@@ -12,6 +12,8 @@ x-stalkeer-volumes: &stalkeer-volumes
   - ./m3u_playlist:/app/m3u_playlist:ro
   - ${DOWNLOADS_DIR:-./data/downloads}:/app/data/downloads
   - ${TEMP_DIR:-./data/temp}:/app/data/temp
+  - ./data/downloads/movies:/app/data/downloads/movies
+  - ./data/downloads/movies:/app/data/downloads/tvshows
 
 x-stalkeer-environment: &stalkeer-environment
   DB_HOST: ${DB_HOST:-postgres}
