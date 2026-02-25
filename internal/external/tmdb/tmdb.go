@@ -22,6 +22,11 @@ const defaultTimeout = 30 * time.Second
 // baseURL is a var so tests can override it with an httptest server address.
 var baseURL = "https://api.themoviedb.org/3"
 
+// SetBaseURL overrides the TMDB API base URL. Intended for use in tests only.
+func SetBaseURL(url string) {
+	baseURL = url
+}
+
 // Client handles TMDB API interactions
 type Client struct {
 	apiKey          string
