@@ -511,10 +511,9 @@ and download matched items from M3U playlist stream URLs.`,
 				continue
 			}
 
-			// Download
+			// Download - use Radarr's configured path for the movie
 			baseDestPath := filepath.Join(
-				cfg.Downloads.MoviesPath,
-				fmt.Sprintf("%s (%d)", sanitizeFilename(movie.Title), movie.Year),
+				movie.Path,
 				fmt.Sprintf("%s (%d)", sanitizeFilename(movie.Title), movie.Year),
 			)
 			fileExt := filepath.Ext(*processedLine.LineURL)
@@ -745,11 +744,10 @@ and download matched items from M3U playlist stream URLs.`,
 				continue
 			}
 
-			// Download
+			// Download - use Sonarr's configured path for the series
 			baseDestPath := filepath.Join(
-				cfg.Downloads.TVShowsPath,
-				fmt.Sprintf("%s (%d)", sanitizeFilename(series.Title), series.Year),
-				fmt.Sprintf("Season %01d", episode.SeasonNumber),
+				series.Path,
+				fmt.Sprintf("Season %02d", episode.SeasonNumber),
 				fmt.Sprintf("%s - S%02dE%02d", sanitizeFilename(series.Title), episode.SeasonNumber, episode.EpisodeNumber),
 			)
 			fileExt := filepath.Ext(*processedLine.LineURL)
