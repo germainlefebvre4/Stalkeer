@@ -17,7 +17,7 @@ x-stalkeer-volumes: &stalkeer-volumes
 
 x-stalkeer-environment: &stalkeer-environment
   DB_HOST: ${DB_HOST:-postgres}
-  DB_PORT: ${DB_PORT:-5432}
+  DB_PORT: ${DB_PORT:-5433}
   DB_USER: ${DB_USER:-postgres}
   DB_PASSWORD: ${DB_PASSWORD:-postgres}
   DB_NAME: ${DB_NAME:-stalkeer}
@@ -60,9 +60,9 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
-    volumes:
-      - ./data/postgres:/var/lib/postgresql/data
+      - "${POSTGRES_PORT:-5433}:5432"
+    # volumes:
+    #   - ./data/postgres:/var/lib/postgresql/data
       # Optional: Init scripts
       # - ./init-db.sql:/docker-entrypoint-initdb.d/init.sql
     healthcheck:
@@ -140,10 +140,7 @@ services:
   # sonarr:
   #   image: lscr.io/linuxserver/sonarr:latest
   #   container_name: stalkeer-sonarr
-  #   environment:
-  #     <<: *linuxserver-environment
-  #     UID: ${UID:-1000}
-  #     GID: ${GID:-1000}
+  #   environment: *linuxserver-environment
   #   volumes:
   #     - ./data/sonarr:/config
   #     - ./data/downloads:/downloads

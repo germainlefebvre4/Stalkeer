@@ -82,8 +82,9 @@ func NewProcessor(filePath string) (*Processor, error) {
 	cfg := config.Get()
 	if cfg.TMDB.Enabled && cfg.TMDB.APIKey != "" {
 		tmdbClient = tmdb.NewClient(tmdb.Config{
-			APIKey:   cfg.TMDB.APIKey,
-			Language: cfg.TMDB.Language,
+			APIKey:            cfg.TMDB.APIKey,
+			Language:          cfg.TMDB.Language,
+			RequestsPerSecond: cfg.TMDB.RequestsPerSecond,
 		})
 		log.Info("TMDB client initialized")
 	} else {

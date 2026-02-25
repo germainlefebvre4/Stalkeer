@@ -7,7 +7,9 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/glefebvre/stalkeer/internal/circuitbreaker"
@@ -15,25 +17,30 @@ import (
 	"github.com/glefebvre/stalkeer/internal/retry"
 )
 
-const (
-	baseURL        = "https://api.themoviedb.org/3"
-	defaultTimeout = 30 * time.Second
-)
+const defaultTimeout = 30 * time.Second
+
+// baseURL is a var so tests can override it with an httptest server address.
+var baseURL = "https://api.themoviedb.org/3"
 
 // Client handles TMDB API interactions
 type Client struct {
-	apiKey     string
-	language   string
-	httpClient *http.Client
-	logger     *logger.Logger
-	circuitBrk *circuitbreaker.CircuitBreaker
+	apiKey          string
+	language        string
+	httpClient      *http.Client
+	logger          *logger.Logger
+	circuitBrk      *circuitbreaker.CircuitBreaker
+	requestInterval time.Duration     // minimum gap between HTTP requests; 0 = no limiting
+	lastRequestAt   time.Time         // when the last HTTP request was initiated
+	cache           map[string][]byte // URL → raw JSON response (scoped to client lifetime)
+	cacheMu         sync.RWMutex      // protects cache
 }
 
 // Config holds TMDB client configuration
 type Config struct {
-	APIKey   string
-	Language string // e.g., "en-US", "fr-FR,fr;q=0.9,en-US;q=0.5,en;q=0.5"
-	Timeout  time.Duration
+	APIKey            string
+	Language          string // e.g., "en-US", "fr-FR,fr;q=0.9,en-US;q=0.5,en;q=0.5"
+	Timeout           time.Duration
+	RequestsPerSecond float64 // max outbound requests per second; 0 = no limit (default: 4.0)
 }
 
 // MovieResult represents a movie search result from TMDB
@@ -138,14 +145,21 @@ func NewClient(cfg Config) *Client {
 		Timeout:     60 * time.Second,
 	})
 
+	var requestInterval time.Duration
+	if cfg.RequestsPerSecond > 0 {
+		requestInterval = time.Duration(float64(time.Second) / cfg.RequestsPerSecond)
+	}
+
 	return &Client{
 		apiKey:   cfg.APIKey,
 		language: cfg.Language,
 		httpClient: &http.Client{
 			Timeout: cfg.Timeout,
 		},
-		logger:     logger.AppLogger(),
-		circuitBrk: cb,
+		logger:          logger.AppLogger(),
+		circuitBrk:      cb,
+		requestInterval: requestInterval,
+		cache:           make(map[string][]byte),
 	}
 }
 
@@ -228,7 +242,8 @@ func (c *Client) GetTVShowExternalIDs(tvShowID int) (*ExternalIDs, error) {
 	return &externalIDs, nil
 }
 
-// makeRequest performs an HTTP request to the TMDB API with circuit breaker and retry
+// makeRequest performs an HTTP request to the TMDB API with caching, rate limiting,
+// circuit breaker, and retry.
 func (c *Client) makeRequest(endpoint string, params url.Values, result interface{}) error {
 	// Add API key and language to parameters
 	params.Set("api_key", c.apiKey)
@@ -236,7 +251,22 @@ func (c *Client) makeRequest(endpoint string, params url.Values, result interfac
 
 	requestURL := fmt.Sprintf("%s%s?%s", baseURL, endpoint, params.Encode())
 
-	// Use retry logic with circuit breaker
+	// Check cache first — no HTTP call, no rate-limit slot consumed on hit.
+	c.cacheMu.RLock()
+	if cached, ok := c.cache[requestURL]; ok {
+		c.cacheMu.RUnlock()
+		return json.Unmarshal(cached, result)
+	}
+	c.cacheMu.RUnlock()
+
+	// Rate-limit: sleep until the minimum interval has elapsed since the last request.
+	if c.requestInterval > 0 {
+		if gap := c.requestInterval - time.Since(c.lastRequestAt); gap > 0 {
+			time.Sleep(gap)
+		}
+		c.lastRequestAt = time.Now()
+	}
+
 	ctx := context.Background()
 	retryCfg := retry.Config{
 		MaxAttempts:       3,
@@ -246,6 +276,9 @@ func (c *Client) makeRequest(endpoint string, params url.Values, result interfac
 		JitterFraction:    0.1,
 	}
 
+	// rawBody is captured by the closure on success for caching after retry.Do.
+	var rawBody []byte
+
 	operation := func() error {
 		// Execute through circuit breaker
 		return c.circuitBrk.Execute(func() error {
@@ -254,7 +287,6 @@ func (c *Client) makeRequest(endpoint string, params url.Values, result interfac
 				return err
 			}
 
-			// Set Accept-Language header
 			req.Header.Set("Accept-Language", c.language)
 			req.Header.Set("Accept", "application/json")
 
@@ -265,7 +297,19 @@ func (c *Client) makeRequest(endpoint string, params url.Values, result interfac
 			defer resp.Body.Close()
 
 			if resp.StatusCode == 429 {
-				// Rate limit exceeded
+				// Honour the Retry-After header before returning the retryable error.
+				// Supports both seconds ("30") and HTTP-date formats.
+				if h := resp.Header.Get("Retry-After"); h != "" {
+					var wait time.Duration
+					if secs, err := strconv.Atoi(h); err == nil {
+						wait = time.Duration(secs) * time.Second
+					} else if t, err := http.ParseTime(h); err == nil {
+						wait = time.Until(t)
+					}
+					if wait > 0 {
+						time.Sleep(wait)
+					}
+				}
 				return fmt.Errorf("TMDB API rate limit exceeded")
 			}
 
@@ -283,6 +327,7 @@ func (c *Client) makeRequest(endpoint string, params url.Values, result interfac
 				return fmt.Errorf("failed to unmarshal response: %w", err)
 			}
 
+			rawBody = body
 			return nil
 		})
 	}
@@ -292,7 +337,6 @@ func (c *Client) makeRequest(endpoint string, params url.Values, result interfac
 		if err == nil {
 			return false
 		}
-		// Retry on rate limits and temporary errors
 		return strings.Contains(err.Error(), "rate limit") ||
 			strings.Contains(err.Error(), "timeout") ||
 			strings.Contains(err.Error(), "temporary")
@@ -305,6 +349,13 @@ func (c *Client) makeRequest(endpoint string, params url.Values, result interfac
 			"error":    err,
 		}).Warn("TMDB API request failed after retries")
 		return err
+	}
+
+	// Cache the successful response for the lifetime of this client.
+	if rawBody != nil {
+		c.cacheMu.Lock()
+		c.cache[requestURL] = rawBody
+		c.cacheMu.Unlock()
 	}
 
 	return nil

@@ -72,6 +72,7 @@ tmdb:
   enabled: true
   api_key: your_tmdb_api_key_here  # Get from https://www.themoviedb.org/settings/api
   language: en-US  # Language for TMDB metadata (e.g., en-US, fr-FR, es-ES)
+  requests_per_second: 4.0  # Max TMDB API requests per second (TMDB limit: ~40/10s). Set to 0 to disable.
 
 # Radarr integration (optional)
 radarr:

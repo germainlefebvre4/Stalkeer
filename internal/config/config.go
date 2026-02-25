@@ -88,9 +88,10 @@ type APIConfig struct {
 
 // TMDBConfig holds TMDB API settings
 type TMDBConfig struct {
-	APIKey   string `mapstructure:"api_key"`
-	Language string `mapstructure:"language"`
-	Enabled  bool   `mapstructure:"enabled"`
+	APIKey            string  `mapstructure:"api_key"`
+	Language          string  `mapstructure:"language"`
+	Enabled           bool    `mapstructure:"enabled"`
+	RequestsPerSecond float64 `mapstructure:"requests_per_second"`
 }
 
 // RadarrConfig holds Radarr integration settings
@@ -189,6 +190,7 @@ func Load() error {
 	bindEnvWithAlternatives("tmdb.api_key", "TMDB_API_KEY")
 	viper.BindEnv("tmdb.language")
 	viper.BindEnv("tmdb.enabled")
+	viper.BindEnv("tmdb.requests_per_second")
 
 	bindEnvWithAlternatives("radarr.url", "RADARR_URL")
 	bindEnvWithAlternatives("radarr.api_key", "RADARR_API_KEY")
@@ -294,6 +296,7 @@ func setDefaults() {
 	// TMDB defaults
 	viper.SetDefault("tmdb.enabled", true)
 	viper.SetDefault("tmdb.language", "en-US")
+	viper.SetDefault("tmdb.requests_per_second", 4.0)
 
 	// API defaults
 	viper.SetDefault("api.port", 8080)
