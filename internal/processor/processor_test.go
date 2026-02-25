@@ -312,6 +312,96 @@ http://example.com/movie.mkv`
 	}
 }
 
+func TestExtractTitleAndYear(t *testing.T) {
+	p := &Processor{}
+
+	tests := []struct {
+		name        string
+		input       string
+		wantTitle   string
+		wantYear    *int
+	}{
+		{
+			name:      "trailing SD suffix stripped",
+			input:     "Wonder Woman SD",
+			wantTitle: "Wonder Woman",
+			wantYear:  nil,
+		},
+		{
+			name:      "trailing SD with accented characters",
+			input:     "Jumanji : Bienvenue dans la jungle SD",
+			wantTitle: "Jumanji : Bienvenue dans la jungle",
+			wantYear:  nil,
+		},
+		{
+			name:      "FHD MULTI suffix stripped with year in parentheses",
+			input:     "Die Hart 2 (2024) FHD MULTI",
+			wantTitle: "Die Hart 2",
+			wantYear:  intPtr(2024),
+		},
+		{
+			name:      "HD MULTI suffix stripped with year in parentheses",
+			input:     "Heist 88 (2024) HD MULTI",
+			wantTitle: "Heist 88",
+			wantYear:  intPtr(2024),
+		},
+		{
+			name:      "year in parentheses without suffix",
+			input:     "Inception (2010)",
+			wantTitle: "Inception",
+			wantYear:  intPtr(2010),
+		},
+		{
+			name:      "dash year format",
+			input:     "Super Dark Times - 2017",
+			wantTitle: "Super Dark Times",
+			wantYear:  intPtr(2017),
+		},
+		{
+			name:      "dash year format with accents",
+			input:     "Une Couronne pour Noël - 2015",
+			wantTitle: "Une Couronne pour Noël",
+			wantYear:  intPtr(2015),
+		},
+		{
+			name:      "hyphen in title without year is preserved",
+			input:     "Spider-Man : No Way Home",
+			wantTitle: "Spider-Man : No Way Home",
+			wantYear:  nil,
+		},
+		{
+			name:      "dash in title not followed by valid year is preserved",
+			input:     "Mission : Impossible - Fallout",
+			wantTitle: "Mission : Impossible - Fallout",
+			wantYear:  nil,
+		},
+		{
+			name:      "plain title without suffix or year",
+			input:     "Venom",
+			wantTitle: "Venom",
+			wantYear:  nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotTitle, gotYear := p.extractTitleAndYear(tt.input)
+			if gotTitle != tt.wantTitle {
+				t.Errorf("title: got %q, want %q", gotTitle, tt.wantTitle)
+			}
+			if tt.wantYear == nil && gotYear != nil {
+				t.Errorf("year: got %d, want nil", *gotYear)
+			} else if tt.wantYear != nil && gotYear == nil {
+				t.Errorf("year: got nil, want %d", *tt.wantYear)
+			} else if tt.wantYear != nil && gotYear != nil && *gotYear != *tt.wantYear {
+				t.Errorf("year: got %d, want %d", *gotYear, *tt.wantYear)
+			}
+		})
+	}
+}
+
+func intPtr(i int) *int { return &i }
+
 func TestComputeLineHash(t *testing.T) {
 	hash1 := computeLineHash("Test Movie http://example.com/movie.mkv")
 	hash2 := computeLineHash("Test Movie http://example.com/movie.mkv")

@@ -327,32 +327,32 @@ func (p *Processor) enrichMovie(line *models.ProcessedLine, language string, sta
 		}).Warn("Failed to fetch movie external IDs")
 	}
 
-	// Create or find existing movie
+	// Create or find existing movie (atomic upsert to prevent duplicate key on concurrent inserts)
 	var movie models.Movie
 	tmdbYear := tmdb.ExtractYear(details.ReleaseDate)
 	genres := tmdb.FormatGenres(details.Genres)
 
-	// Check if movie already exists
-	err = p.db.Where("tmdb_id = ? AND tmdb_year = ?", details.ID, tmdbYear).First(&movie).Error
-	if err == gorm.ErrRecordNotFound {
-		// Create new movie
-		movie = models.Movie{
-			TMDBID:     details.ID,
-			TVDBID:     externalIDs.TVDBID,
-			TMDBTitle:  details.Title,
-			TMDBYear:   tmdbYear,
-			TMDBGenres: &genres,
-			Duration:   details.Runtime,
-		}
-		if err := p.db.Create(&movie).Error; err != nil {
-			stats.TMDBErrors++
-			return fmt.Errorf("failed to create movie: %w", err)
-		}
-	} else if err != nil {
+	var tvdbID *int
+	if externalIDs != nil {
+		tvdbID = externalIDs.TVDBID
+	}
+	attrs := models.Movie{
+		TMDBID:     details.ID,
+		TVDBID:     tvdbID,
+		TMDBTitle:  details.Title,
+		TMDBYear:   tmdbYear,
+		TMDBGenres: &genres,
+		Duration:   details.Runtime,
+	}
+	if result := p.db.Where("tmdb_id = ? AND tmdb_year = ?", details.ID, tmdbYear).
+		Attrs(attrs).
+		FirstOrCreate(&movie); result.Error != nil {
 		stats.TMDBErrors++
-		return fmt.Errorf("failed to check for existing movie: %w", err)
-	} else if externalIDs != nil && externalIDs.TVDBID != nil && movie.TVDBID == nil {
-		// Update existing movie with TVDB ID if it's missing
+		return fmt.Errorf("failed to upsert movie: %w", result.Error)
+	}
+
+	// Update TVDB ID if it's missing on an existing record
+	if externalIDs != nil && externalIDs.TVDBID != nil && movie.TVDBID == nil {
 		movie.TVDBID = externalIDs.TVDBID
 		if err := p.db.Save(&movie).Error; err != nil {
 			p.logger.WithFields(map[string]interface{}{
@@ -398,12 +398,25 @@ func (p *Processor) enrichTVShow(line *models.ProcessedLine, classification clas
 		}).Warn("Failed to fetch TV show external IDs")
 	}
 
-	// Create or find existing TV show
+	// Create or find existing TV show (atomic upsert to prevent duplicate key on concurrent inserts)
 	var tvshow models.TVShow
 	tmdbYear := tmdb.ExtractYear(details.FirstAirDate)
 	genres := tmdb.FormatGenres(details.Genres)
 
-	// Check if TV show already exists with same TMDB ID, season, and episode
+	var tvdbID *int
+	if externalIDs != nil {
+		tvdbID = externalIDs.TVDBID
+	}
+	attrs := models.TVShow{
+		TMDBID:     details.ID,
+		TVDBID:     tvdbID,
+		TMDBTitle:  details.Name,
+		TMDBYear:   tmdbYear,
+		TMDBGenres: &genres,
+		Season:     classification.Season,
+		Episode:    classification.Episode,
+	}
+
 	query := p.db.Where("tmdb_id = ?", details.ID)
 	if classification.Season != nil {
 		query = query.Where("season = ?", *classification.Season)
@@ -416,27 +429,13 @@ func (p *Processor) enrichTVShow(line *models.ProcessedLine, classification clas
 		query = query.Where("episode IS NULL")
 	}
 
-	err = query.First(&tvshow).Error
-	if err == gorm.ErrRecordNotFound {
-		// Create new TV show entry
-		tvshow = models.TVShow{
-			TMDBID:     details.ID,
-			TVDBID:     externalIDs.TVDBID,
-			TMDBTitle:  details.Name,
-			TMDBYear:   tmdbYear,
-			TMDBGenres: &genres,
-			Season:     classification.Season,
-			Episode:    classification.Episode,
-		}
-		if err := p.db.Create(&tvshow).Error; err != nil {
-			stats.TMDBErrors++
-			return fmt.Errorf("failed to create TV show: %w", err)
-		}
-	} else if err != nil {
+	if result := query.Attrs(attrs).FirstOrCreate(&tvshow); result.Error != nil {
 		stats.TMDBErrors++
-		return fmt.Errorf("failed to check for existing TV show: %w", err)
-	} else if externalIDs != nil && externalIDs.TVDBID != nil && tvshow.TVDBID == nil {
-		// Update existing TV show with TVDB ID if it's missing
+		return fmt.Errorf("failed to upsert TV show: %w", result.Error)
+	}
+
+	// Update TVDB ID if it's missing on an existing record
+	if externalIDs != nil && externalIDs.TVDBID != nil && tvshow.TVDBID == nil {
 		tvshow.TVDBID = externalIDs.TVDBID
 		if err := p.db.Save(&tvshow).Error; err != nil {
 			p.logger.WithFields(map[string]interface{}{
@@ -453,14 +452,27 @@ func (p *Processor) enrichTVShow(line *models.ProcessedLine, classification clas
 	return nil
 }
 
-// extractTitleAndYear extracts title and optional year from a string
+// qualitySuffixRe matches quality/language tokens at the end of a title,
+// e.g. "Movie SD", "Movie HD MULTI", "Movie FHD VOSTFR".
+var qualitySuffixRe = regexp.MustCompile(`(?i)\s+(?:SD|FHD|UHD|HD|4K|MULTI|VOSTFR|VF)(?:\s+.*)?$`)
+
+// yearDashRe matches a year in the "Titre - YYYY" format at the end of a title,
+// e.g. "Super Dark Times - 2017". Requires a 19xx or 20xx year to avoid false positives.
+var yearDashRe = regexp.MustCompile(`\s*-\s*((?:19|20)\d{2})$`)
+
+// extractTitleAndYear extracts title and optional year from a string.
+// It first strips quality/language suffixes (SD, HD, FHD, UHD, 4K, MULTI, VOSTFR, VF),
+// then attempts year extraction from "(YYYY)" and "- YYYY" formats.
 func (p *Processor) extractTitleAndYear(title string) (string, *int) {
-	// Look for year in parentheses like "Movie Title (2024)"
-	if strings.Contains(title, "(") {
-		parts := strings.Split(title, "(")
+	// Strip quality/language suffixes first
+	clean := qualitySuffixRe.ReplaceAllString(title, "")
+	clean = strings.TrimSpace(clean)
+
+	// Try "(YYYY)" format: "Movie Title (2024)"
+	if strings.Contains(clean, "(") {
+		parts := strings.Split(clean, "(")
 		cleanTitle := strings.TrimSpace(parts[0])
 
-		// Try to extract year
 		for i := 1; i < len(parts); i++ {
 			if strings.Contains(parts[i], ")") {
 				yearStr := strings.TrimSuffix(parts[i], ")")
@@ -473,7 +485,16 @@ func (p *Processor) extractTitleAndYear(title string) (string, *int) {
 		return cleanTitle, nil
 	}
 
-	return strings.TrimSpace(title), nil
+	// Try "Titre - YYYY" format: "Super Dark Times - 2017"
+	if m := yearDashRe.FindStringSubmatch(clean); m != nil {
+		var year int
+		if _, err := fmt.Sscanf(m[1], "%d", &year); err == nil && year >= 1900 && year <= 2100 {
+			cleanTitle := strings.TrimSpace(yearDashRe.ReplaceAllString(clean, ""))
+			return cleanTitle, &year
+		}
+	}
+
+	return clean, nil
 }
 
 // cleanTVShowTitle removes season/episode markers and quality tags from title
