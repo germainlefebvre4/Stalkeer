@@ -156,7 +156,20 @@ func (d *Downloader) Download(ctx context.Context, opts DownloadOptions) (*Downl
 	var lastPersistedBytes int64
 	var lastPersistTime time.Time = time.Now()
 
-	err := retry.Do(ctx, d.retryConfig, func() error {
+	retryConfig := d.retryConfig
+	if downloadInfoID > 0 {
+		retryConfig.OnRetry = func(attempt int, err error) {
+			if updateErr := d.stateManager.UpdateState(ctx, downloadInfoID, models.DownloadStatusRetrying, nil); updateErr != nil {
+				log.WithFields(map[string]interface{}{
+					"download_id": downloadInfoID,
+					"attempt":     attempt,
+					"error":       updateErr,
+				}).Warn("failed to increment retry_count")
+			}
+		}
+	}
+
+	err := retry.Do(ctx, retryConfig, func() error {
 		res, ct, err := d.downloadFile(ctx, opts.URL, tempPath, func(downloaded, total int64) {
 			// Call user's progress callback
 			if opts.OnProgress != nil {
@@ -410,6 +423,7 @@ func (d *Downloader) getOrCreateDownloadInfo(ctx context.Context, processedLineI
 
 	// Create new DownloadInfo
 	downloadInfo := &models.DownloadInfo{
+		URL:       url,
 		Status:    string(models.DownloadStatusPending),
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),

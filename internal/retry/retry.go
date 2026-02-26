@@ -14,6 +14,7 @@ type Config struct {
 	MaxBackoff        time.Duration
 	BackoffMultiplier float64
 	JitterFraction    float64
+	OnRetry           func(attempt int, err error) // Optional: called after each failed retryable attempt, before sleeping
 }
 
 // DefaultConfig returns sensible defaults for retry configuration
@@ -49,6 +50,11 @@ func Do(ctx context.Context, cfg Config, fn func() error, isRetryable IsRetryabl
 		// Don't sleep after last attempt
 		if attempt == cfg.MaxAttempts {
 			return err
+		}
+
+		// Notify caller of retry
+		if cfg.OnRetry != nil {
+			cfg.OnRetry(attempt, err)
 		}
 
 		// Calculate backoff with jitter

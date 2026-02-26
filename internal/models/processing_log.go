@@ -63,6 +63,7 @@ const (
 // DownloadInfo represents download tracking information
 type DownloadInfo struct {
 	ID              uint       `gorm:"primaryKey" json:"id"`
+	URL             string     `gorm:"type:text;index:idx_download_info_url" json:"url"`                       // Source URL of the download
 	Status          string     `gorm:"type:varchar(50);not null;index:idx_download_info_status" json:"status"` // "pending", "downloading", "paused", "completed", "failed", "retrying"
 	DownloadPath    *string    `gorm:"type:text" json:"download_path,omitempty"`
 	FileSize        *int64     `json:"file_size,omitempty"`

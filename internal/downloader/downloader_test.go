@@ -437,3 +437,130 @@ func TestDownload_CreatesDestinationDirectory(t *testing.T) {
 	_, err = os.Stat(filepath.Join(tempDir, "movies", "test"))
 	assert.NoError(t, err)
 }
+
+func TestDownload_URLStoredInDownloadInfo(t *testing.T) {
+	setupTestDB(t)
+	gdb := database.Get()
+	if gdb == nil {
+		t.Skip("skipping: database not available")
+	}
+	if sqlDB, err := gdb.DB(); err != nil || sqlDB.Ping() != nil {
+		t.Skip("skipping: database not reachable")
+	}
+
+	// Create ProcessedLine directly in the global DB (same DB the downloader uses)
+	lineURL := "http://example.com/url-tracking-test.mkv"
+	processedLine := &models.ProcessedLine{
+		LineURL:     &lineURL,
+		LineContent: "#EXTINF:-1,URL Tracking Test",
+		LineHash:    "urltracking001",
+		TvgName:     "URL Tracking Test",
+		GroupTitle:  "Movies",
+		ContentType: models.ContentTypeMovies,
+		State:       models.StateProcessed,
+	}
+	err := gdb.Create(processedLine).Error
+	require.NoError(t, err)
+	t.Cleanup(func() { gdb.Delete(processedLine) })
+
+	// Create test server
+	content := []byte("url tracking test content")
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Length", fmt.Sprintf("%d", len(content)))
+		w.WriteHeader(http.StatusOK)
+		w.Write(content)
+	}))
+	defer server.Close()
+
+	tempDir := t.TempDir()
+	destPath := filepath.Join(tempDir, "url-tracking-test.mkv")
+
+	d := New(10*time.Second, 3)
+	_, err = d.Download(context.Background(), DownloadOptions{
+		URL:             server.URL,
+		BaseDestPath:    destPath,
+		ProcessedLineID: processedLine.ID,
+	})
+	require.NoError(t, err)
+
+	// Reload ProcessedLine to get DownloadInfoID
+	var updated models.ProcessedLine
+	err = gdb.First(&updated, processedLine.ID).Error
+	require.NoError(t, err)
+	require.NotNil(t, updated.DownloadInfoID, "DownloadInfoID should be set after download")
+
+	// Check DownloadInfo has URL stored
+	var dlInfo models.DownloadInfo
+	err = gdb.First(&dlInfo, *updated.DownloadInfoID).Error
+	require.NoError(t, err)
+	assert.Equal(t, server.URL, dlInfo.URL, "DownloadInfo.URL should match the download URL")
+	assert.Equal(t, string(models.DownloadStatusCompleted), dlInfo.Status)
+
+	t.Cleanup(func() { gdb.Delete(&dlInfo) })
+}
+
+func TestDownload_RetryCountIncrements(t *testing.T) {
+	setupTestDB(t)
+	gdb := database.Get()
+	if gdb == nil {
+		t.Skip("skipping: database not available")
+	}
+	if sqlDB, err := gdb.DB(); err != nil || sqlDB.Ping() != nil {
+		t.Skip("skipping: database not reachable")
+	}
+
+	lineURL := "http://example.com/retry-count-test.mkv"
+	processedLine := &models.ProcessedLine{
+		LineURL:     &lineURL,
+		LineContent: "#EXTINF:-1,Retry Count Test",
+		LineHash:    "retrycount001",
+		TvgName:     "Retry Count Test",
+		GroupTitle:  "Movies",
+		ContentType: models.ContentTypeMovies,
+		State:       models.StateProcessed,
+	}
+	err := gdb.Create(processedLine).Error
+	require.NoError(t, err)
+	t.Cleanup(func() { gdb.Delete(processedLine) })
+
+	// Server fails first 2 attempts, succeeds on 3rd
+	attemptCount := 0
+	content := []byte("retry count test content")
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		attemptCount++
+		if attemptCount < 3 {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Length", fmt.Sprintf("%d", len(content)))
+		w.WriteHeader(http.StatusOK)
+		w.Write(content)
+	}))
+	defer server.Close()
+
+	tempDir := t.TempDir()
+	destPath := filepath.Join(tempDir, "retry-count-test.mkv")
+
+	d := New(10*time.Second, 5)
+	_, err = d.Download(context.Background(), DownloadOptions{
+		URL:             server.URL,
+		BaseDestPath:    destPath,
+		ProcessedLineID: processedLine.ID,
+	})
+	require.NoError(t, err)
+
+	// Reload ProcessedLine to get DownloadInfoID
+	var updated models.ProcessedLine
+	err = gdb.First(&updated, processedLine.ID).Error
+	require.NoError(t, err)
+	require.NotNil(t, updated.DownloadInfoID)
+
+	// retry_count should reflect 2 retries (attempts 1 and 2 failed, attempt 3 succeeded)
+	var dlInfo models.DownloadInfo
+	err = gdb.First(&dlInfo, *updated.DownloadInfoID).Error
+	require.NoError(t, err)
+	assert.Equal(t, 2, dlInfo.RetryCount, "retry_count should be 2 after 2 failed attempts")
+	assert.Equal(t, server.URL, dlInfo.URL)
+
+	t.Cleanup(func() { gdb.Delete(&dlInfo) })
+}

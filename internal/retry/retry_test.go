@@ -248,6 +248,95 @@ func TestBackoff(t *testing.T) {
 	}
 }
 
+func TestDo_OnRetryCallback(t *testing.T) {
+	cfg := Config{
+		MaxAttempts:       3,
+		InitialBackoff:    1 * time.Millisecond,
+		MaxBackoff:        10 * time.Millisecond,
+		BackoffMultiplier: 2.0,
+		JitterFraction:    0,
+	}
+
+	var onRetryCalls []int
+	cfg.OnRetry = func(attempt int, err error) {
+		onRetryCalls = append(onRetryCalls, attempt)
+	}
+
+	attempts := 0
+	err := Do(context.Background(), cfg, func() error {
+		attempts++
+		if attempts < 3 {
+			return errors.New("temporary error")
+		}
+		return nil
+	}, func(err error) bool {
+		return true
+	})
+
+	if err != nil {
+		t.Errorf("expected no error, got %v", err)
+	}
+	// 3 attempts: fail at 1, fail at 2, succeed at 3 → OnRetry called after attempts 1 and 2
+	if len(onRetryCalls) != 2 {
+		t.Errorf("expected OnRetry called 2 times, got %d", len(onRetryCalls))
+	}
+	if onRetryCalls[0] != 1 || onRetryCalls[1] != 2 {
+		t.Errorf("expected OnRetry called with attempts [1,2], got %v", onRetryCalls)
+	}
+}
+
+func TestDo_OnRetryCallback_AllFail(t *testing.T) {
+	cfg := Config{
+		MaxAttempts:       3,
+		InitialBackoff:    1 * time.Millisecond,
+		MaxBackoff:        10 * time.Millisecond,
+		BackoffMultiplier: 2.0,
+		JitterFraction:    0,
+	}
+
+	var onRetryCalls int
+	cfg.OnRetry = func(attempt int, err error) {
+		onRetryCalls++
+	}
+
+	_ = Do(context.Background(), cfg, func() error {
+		return errors.New("persistent error")
+	}, func(err error) bool {
+		return true
+	})
+
+	// MaxAttempts=3: fail, OnRetry, fail, OnRetry, fail (last attempt, no OnRetry)
+	if onRetryCalls != 2 {
+		t.Errorf("expected OnRetry called 2 times, got %d", onRetryCalls)
+	}
+}
+
+func TestDo_OnRetryCallback_NilIsSafe(t *testing.T) {
+	cfg := Config{
+		MaxAttempts:       2,
+		InitialBackoff:    1 * time.Millisecond,
+		MaxBackoff:        10 * time.Millisecond,
+		BackoffMultiplier: 2.0,
+		JitterFraction:    0,
+		OnRetry:           nil, // Explicitly nil
+	}
+
+	attempts := 0
+	err := Do(context.Background(), cfg, func() error {
+		attempts++
+		if attempts < 2 {
+			return errors.New("temporary error")
+		}
+		return nil
+	}, func(err error) bool {
+		return true
+	})
+
+	if err != nil {
+		t.Errorf("expected no error, got %v", err)
+	}
+}
+
 func TestDefaultConfig(t *testing.T) {
 	cfg := DefaultConfig()
 
