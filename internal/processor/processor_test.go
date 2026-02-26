@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/glefebvre/stalkeer/internal/classifier"
 	"github.com/glefebvre/stalkeer/internal/config"
 	"github.com/glefebvre/stalkeer/internal/database"
 	"github.com/glefebvre/stalkeer/internal/models"
@@ -401,6 +402,59 @@ func TestExtractTitleAndYear(t *testing.T) {
 }
 
 func intPtr(i int) *int { return &i }
+
+func TestSetContentTypeResolution(t *testing.T) {
+	// Unit test: verifies that setContentType persists the resolution from the classifier.
+	// Uses SkipTMDB=true and TMDBLanguage set to avoid config/DB dependencies.
+	p := &Processor{
+		classifier: classifier.New(),
+	}
+
+	res := "1080p"
+	cl := classifier.Classification{
+		ContentType: classifier.ContentTypeMovie,
+		Resolution:  &res,
+	}
+
+	line := &models.ProcessedLine{TvgName: "Inception 1080p"}
+	opts := &ProcessOptions{SkipTMDB: true, TMDBLanguage: "en-US"}
+	stats := &Statistics{}
+
+	if err := p.setContentType(line, cl, opts, stats); err != nil {
+		t.Fatalf("setContentType returned error: %v", err)
+	}
+
+	if line.Resolution == nil {
+		t.Fatal("expected Resolution to be set, got nil")
+	}
+	if *line.Resolution != "1080p" {
+		t.Errorf("expected Resolution = '1080p', got '%s'", *line.Resolution)
+	}
+}
+
+func TestSetContentTypeResolutionNil(t *testing.T) {
+	// Verifies that nil resolution from classifier results in nil on ProcessedLine.
+	p := &Processor{
+		classifier: classifier.New(),
+	}
+
+	cl := classifier.Classification{
+		ContentType: classifier.ContentTypeMovie,
+		Resolution:  nil,
+	}
+
+	line := &models.ProcessedLine{TvgName: "Inception"}
+	opts := &ProcessOptions{SkipTMDB: true, TMDBLanguage: "en-US"}
+	stats := &Statistics{}
+
+	if err := p.setContentType(line, cl, opts, stats); err != nil {
+		t.Fatalf("setContentType returned error: %v", err)
+	}
+
+	if line.Resolution != nil {
+		t.Errorf("expected Resolution to be nil, got '%s'", *line.Resolution)
+	}
+}
 
 func TestComputeLineHash(t *testing.T) {
 	hash1 := computeLineHash("Test Movie http://example.com/movie.mkv")

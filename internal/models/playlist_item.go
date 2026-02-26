@@ -34,6 +34,7 @@ type ProcessedLine struct {
 	GroupTitle      string          `gorm:"type:varchar(255);not null;index:idx_processed_lines_m3u" json:"group_title"`
 	ProcessedAt     time.Time       `gorm:"not null" json:"processed_at"`
 	ContentType     ContentType     `gorm:"type:varchar(20);not null;index:idx_processed_lines_content" json:"content_type"`
+	Resolution      *string         `gorm:"type:varchar(10)" json:"resolution,omitempty"`
 	ChannelID       *uint           `gorm:"index" json:"channel_id,omitempty"`
 	MovieID         *uint           `gorm:"index" json:"movie_id,omitempty"`
 	TVShowID        *uint           `gorm:"index" json:"tvshow_id,omitempty"`
@@ -42,13 +43,10 @@ type ProcessedLine struct {
 	State           ProcessingState `gorm:"type:varchar(50);not null;default:processed;index:idx_processed_lines_content" json:"state"`
 	CreatedAt       time.Time       `gorm:"not null" json:"created_at"`
 	UpdatedAt       time.Time       `gorm:"not null" json:"updated_at"`
-	OverridesID     *uint           `gorm:"index" json:"overrides_id,omitempty"`
-	OverridesAt     *time.Time      `json:"overrides_at,omitempty"`
 
 	// Associations
-	Movie     *Movie         `gorm:"foreignKey:MovieID;constraint:OnDelete=CASCADE" json:"movie,omitempty"`
-	TVShow    *TVShow        `gorm:"foreignKey:TVShowID;constraint:OnDelete=CASCADE" json:"tvshow,omitempty"`
-	Overrides *ProcessedLine `gorm:"foreignKey:OverridesID;constraint:OnDelete=SET NULL" json:"overrides,omitempty"`
+	Movie  *Movie  `gorm:"foreignKey:MovieID;constraint:OnDelete=CASCADE" json:"movie,omitempty"`
+	TVShow *TVShow `gorm:"foreignKey:TVShowID;constraint:OnDelete=CASCADE" json:"tvshow,omitempty"`
 }
 
 // TableName specifies the table name for ProcessedLine

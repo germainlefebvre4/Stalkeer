@@ -20,6 +20,7 @@ import (
 	"github.com/glefebvre/stalkeer/internal/logger"
 	"github.com/glefebvre/stalkeer/internal/m3udownloader"
 	"github.com/glefebvre/stalkeer/internal/matcher"
+	"github.com/glefebvre/stalkeer/internal/models"
 	"github.com/glefebvre/stalkeer/internal/processor"
 	"github.com/glefebvre/stalkeer/internal/retry"
 	"github.com/glefebvre/stalkeer/internal/shutdown"
@@ -474,40 +475,59 @@ and download matched items from M3U playlist stream URLs.`,
 
 			// Match against database - try TVDB first, then TMDB
 			// Note: Radarr doesn't provide TVDB ID, so we rely on TMDB ID and database TVDB storage
-			dbMovie, processedLine, confidence, err := matcher.MatchMovieByTVDB(
+			dbMovie, _, confidence, err := matcher.MatchMovieByTVDB(
 				db, 0, movie.TMDBID, movie.Title, movie.Year,
 			)
 
 			if err != nil {
 				if verbose {
-					fmt.Printf("  ❌ Not found in database (TMDB ID: %d)\n", movie.TMDBID)
+					fmt.Printf("  Not found in database (TMDB ID: %d)\n", movie.TMDBID)
 				}
 				stats.NotFound++
 				continue
 			}
 
-			fmt.Printf("  ✓ Matched: %s (%d) - Confidence: %d%%\n", dbMovie.TMDBTitle, dbMovie.TMDBYear, confidence)
+			fmt.Printf("  Matched: %s (%d) - Confidence: %d%%\n", dbMovie.TMDBTitle, dbMovie.TMDBYear, confidence)
 			stats.Matched++
 
-			if processedLine.LineURL == nil || *processedLine.LineURL == "" {
-				if verbose {
-					fmt.Println("  ⚠ No stream URL available")
+			// Check if already downloaded (unless force)
+			if !force {
+				var downloadedCount int64
+				db.Model(&models.ProcessedLine{}).
+					Where("movie_id = ? AND state = ?", dbMovie.ID, models.StateDownloaded).
+					Count(&downloadedCount)
+				if downloadedCount > 0 {
+					if verbose {
+						fmt.Println("  Already downloaded (use --force to re-download)")
+					}
+					stats.Skipped++
+					continue
 				}
-				stats.Skipped++
+			}
+
+			// Get quality-ordered download candidates
+			candidates, err := matcher.FindMovieDownloadCandidates(db, dbMovie.ID)
+			if err != nil {
+				fmt.Printf("  Failed to get candidates: %v\n", err)
+				stats.Failed++
 				continue
 			}
 
-			// Check if already downloaded (unless force)
-			if !force && processedLine.State == "downloaded" {
+			if len(candidates) == 0 {
 				if verbose {
-					fmt.Println("  ⏭ Already downloaded (use --force to re-download)")
+					fmt.Println("  No stream URL available")
 				}
 				stats.Skipped++
 				continue
 			}
 
 			if dryRun {
-				fmt.Printf("  🔍 Would download from: %s\n", *processedLine.LineURL)
+				c := candidates[0]
+				res := "unknown"
+				if c.Resolution != nil {
+					res = *c.Resolution
+				}
+				fmt.Printf("  Would download (%s): %s\n", res, valueOrEmpty(c.LineURL))
 				stats.Downloaded++
 				continue
 			}
@@ -517,42 +537,52 @@ and download matched items from M3U playlist stream URLs.`,
 				movie.Path,
 				fmt.Sprintf("%s (%d)", sanitizeFilename(movie.Title), movie.Year),
 			)
-			fileExt := filepath.Ext(*processedLine.LineURL)
 
-			if dryRun {
-				fmt.Printf("  🔍 Would download to: %s%s\n", baseDestPath, fileExt)
-				stats.Downloaded++
-				continue
-			}
+			downloaded := false
+			for j, candidate := range candidates {
+				if candidate.LineURL == nil || *candidate.LineURL == "" {
+					continue
+				}
 
-			fmt.Printf("  ⬇️  Downloading to: %s%s\n", baseDestPath, fileExt)
+				res := "unknown"
+				if candidate.Resolution != nil {
+					res = *candidate.Resolution
+				}
+				fmt.Printf("  -> attempt %d/%d (%s): %s\n", j+1, len(candidates), res, *candidate.LineURL)
 
-			var lastUpdate time.Time
-			result, err := dl.Download(ctx, downloader.DownloadOptions{
-				URL:             *processedLine.LineURL,
-				BaseDestPath:    baseDestPath,
-				TempDir:         cfg.Downloads.TempDir,
-				ProcessedLineID: processedLine.ID,
-				OnProgress: func(downloaded, total int64) {
-					if total > 0 {
-						now := time.Now()
-						if now.Sub(lastUpdate) >= 1*time.Second {
-							pct := float64(downloaded) / float64(total) * 100
-							fmt.Printf("\r  Progress: %.1f%% (%d / %d bytes)", pct, downloaded, total)
-							lastUpdate = now
+				var lastUpdate time.Time
+				result, dlErr := dl.Download(ctx, downloader.DownloadOptions{
+					URL:             *candidate.LineURL,
+					BaseDestPath:    baseDestPath,
+					TempDir:         cfg.Downloads.TempDir,
+					ProcessedLineID: candidate.ID,
+					OnProgress: func(dlBytes, total int64) {
+						if total > 0 {
+							now := time.Now()
+							if now.Sub(lastUpdate) >= 1*time.Second {
+								pct := float64(dlBytes) / float64(total) * 100
+								fmt.Printf("\r  Progress: %.1f%% (%d / %d bytes)", pct, dlBytes, total)
+								lastUpdate = now
+							}
 						}
-					}
-				},
-			})
+					},
+				})
 
-			if err != nil {
-				fmt.Printf("\n  ❌ Download failed: %v\n", err)
-				stats.Failed++
-				continue
+				if dlErr != nil {
+					fmt.Printf("\n  Download failed: %v\n", dlErr)
+					db.Model(&candidate).Update("state", models.StateFailed)
+					continue
+				}
+
+				fmt.Printf("\n  Downloaded: %s (%.2f MB)\n", result.FilePath, float64(result.FileSize)/(1024*1024))
+				downloaded = true
+				stats.Downloaded++
+				break
 			}
 
-			fmt.Printf("\n  ✅ Downloaded: %s (%.2f MB)\n", result.FilePath, float64(result.FileSize)/(1024*1024))
-			stats.Downloaded++
+			if !downloaded {
+				stats.Failed++
+			}
 		}
 		if dryRun {
 			fmt.Printf("Would download:   %d\n", stats.Downloaded)
@@ -705,42 +735,61 @@ and download matched items from M3U playlist stream URLs.`,
 				i+1, len(missingEpisodes), series.Title, episode.SeasonNumber, episode.EpisodeNumber, episode.Title)
 
 			// Match against database using TVDB ID from Sonarr
-			dbShow, processedLine, confidence, err := matcher.MatchTVShowByTVDB(
+			dbShow, _, confidence, err := matcher.MatchTVShowByTVDB(
 				db, series.TvdbID, 0, series.Title, episode.SeasonNumber, episode.EpisodeNumber,
 			)
 
 			if err != nil {
 				if verbose {
-					fmt.Printf("  ❌ Not found in database (TVDB ID: %d, S%02dE%02d)\n",
+					fmt.Printf("  Not found in database (TVDB ID: %d, S%02dE%02d)\n",
 						series.TvdbID, episode.SeasonNumber, episode.EpisodeNumber)
 				}
 				stats.NotFound++
 				continue
 			}
 
-			fmt.Printf("  ✓ Matched: %s S%02dE%02d - Confidence: %d%%\n",
+			fmt.Printf("  Matched: %s S%02dE%02d - Confidence: %d%%\n",
 				dbShow.TMDBTitle, *dbShow.Season, *dbShow.Episode, confidence)
 			stats.Matched++
 
-			if processedLine.LineURL == nil || *processedLine.LineURL == "" {
-				if verbose {
-					fmt.Println("  ⚠ No stream URL available")
+			// Check if already downloaded (unless force)
+			if !force {
+				var downloadedCount int64
+				db.Model(&models.ProcessedLine{}).
+					Where("tv_show_id = ? AND state = ?", dbShow.ID, models.StateDownloaded).
+					Count(&downloadedCount)
+				if downloadedCount > 0 {
+					if verbose {
+						fmt.Println("  Already downloaded (use --force to re-download)")
+					}
+					stats.Skipped++
+					continue
 				}
-				stats.Skipped++
+			}
+
+			// Get quality-ordered download candidates
+			candidates, err := matcher.FindTVShowDownloadCandidates(db, dbShow.ID)
+			if err != nil {
+				fmt.Printf("  Failed to get candidates: %v\n", err)
+				stats.Failed++
 				continue
 			}
 
-			// Check if already downloaded (unless force)
-			if !force && processedLine.State == "downloaded" {
+			if len(candidates) == 0 {
 				if verbose {
-					fmt.Println("  ⏭ Already downloaded (use --force to re-download)")
+					fmt.Println("  No stream URL available")
 				}
 				stats.Skipped++
 				continue
 			}
 
 			if dryRun {
-				fmt.Printf("  🔍 Would download from: %s\n", *processedLine.LineURL)
+				c := candidates[0]
+				res := "unknown"
+				if c.Resolution != nil {
+					res = *c.Resolution
+				}
+				fmt.Printf("  Would download (%s): %s\n", res, valueOrEmpty(c.LineURL))
 				stats.Downloaded++
 				continue
 			}
@@ -751,51 +800,61 @@ and download matched items from M3U playlist stream URLs.`,
 				fmt.Sprintf("Season %02d", episode.SeasonNumber),
 				fmt.Sprintf("%s - S%02dE%02d", sanitizeFilename(series.Title), episode.SeasonNumber, episode.EpisodeNumber),
 			)
-			fileExt := filepath.Ext(*processedLine.LineURL)
 
-			if dryRun {
-				fmt.Printf("  🔍 Would download to: %s%s\n", baseDestPath, fileExt)
-				stats.Downloaded++
-				continue
-			}
+			downloaded := false
+			for j, candidate := range candidates {
+				if candidate.LineURL == nil || *candidate.LineURL == "" {
+					continue
+				}
 
-			fmt.Printf("  ⬇️  Downloading to: %s%s\n", baseDestPath, fileExt)
+				res := "unknown"
+				if candidate.Resolution != nil {
+					res = *candidate.Resolution
+				}
+				fmt.Printf("  -> attempt %d/%d (%s): %s\n", j+1, len(candidates), res, *candidate.LineURL)
 
-			var lastUpdate time.Time
-			startTime := time.Now()
-			result, err := dl.Download(ctx, downloader.DownloadOptions{
-				URL:             *processedLine.LineURL,
-				BaseDestPath:    baseDestPath,
-				TempDir:         cfg.Downloads.TempDir,
-				ProcessedLineID: processedLine.ID,
-				OnProgress: func(downloaded, total int64) {
-					if total > 0 {
-						now := time.Now()
-						if now.Sub(lastUpdate) >= 1*time.Second {
-							pct := float64(downloaded) / float64(total) * 100
-							elapsed := now.Sub(startTime)
-							speed := float64(downloaded) / elapsed.Seconds()
-							remaining := time.Duration(0)
-							if speed > 0 {
-								remaining = time.Duration(float64(total-downloaded)/speed) * time.Second
+				var lastUpdate time.Time
+				startTime := time.Now()
+				result, dlErr := dl.Download(ctx, downloader.DownloadOptions{
+					URL:             *candidate.LineURL,
+					BaseDestPath:    baseDestPath,
+					TempDir:         cfg.Downloads.TempDir,
+					ProcessedLineID: candidate.ID,
+					OnProgress: func(dlBytes, total int64) {
+						if total > 0 {
+							now := time.Now()
+							if now.Sub(lastUpdate) >= 1*time.Second {
+								pct := float64(dlBytes) / float64(total) * 100
+								elapsed := now.Sub(startTime)
+								speed := float64(dlBytes) / elapsed.Seconds()
+								remaining := time.Duration(0)
+								if speed > 0 {
+									remaining = time.Duration(float64(total-dlBytes)/speed) * time.Second
+								}
+								fmt.Printf("\r  Progress: %.1f%% - %s / %s - Elapsed: %v - Remaining: %v",
+									pct, formatBytes(dlBytes), formatBytes(total),
+									elapsed.Round(time.Second), remaining.Round(time.Second))
+								lastUpdate = now
 							}
-							fmt.Printf("\r  Progress: %.1f%% - %s / %s - Elapsed: %v - Remaining: %v",
-								pct, formatBytes(downloaded), formatBytes(total),
-								elapsed.Round(time.Second), remaining.Round(time.Second))
-							lastUpdate = now
 						}
-					}
-				},
-			})
+					},
+				})
 
-			if err != nil {
-				fmt.Printf("\n  ❌ Download failed: %v\n", err)
-				stats.Failed++
-				continue
+				if dlErr != nil {
+					fmt.Printf("\n  Download failed: %v\n", dlErr)
+					db.Model(&candidate).Update("state", models.StateFailed)
+					continue
+				}
+
+				fmt.Printf("\n  Downloaded: %s (%.2f MB)\n", result.FilePath, float64(result.FileSize)/(1024*1024))
+				downloaded = true
+				stats.Downloaded++
+				break
 			}
 
-			fmt.Printf("\n  ✅ Downloaded: %s (%.2f MB)\n", result.FilePath, float64(result.FileSize)/(1024*1024))
-			stats.Downloaded++
+			if !downloaded {
+				stats.Failed++
+			}
 		}
 
 		// Print summary
@@ -995,6 +1054,13 @@ var cleanupM3UArchivesCmd = &cobra.Command{
 }
 
 // formatBytes converts bytes to human-readable format
+func valueOrEmpty(ptr *string) string {
+	if ptr == nil {
+		return ""
+	}
+	return *ptr
+}
+
 func formatBytes(bytes int64) string {
 	const unit = 1024
 	if bytes < unit {

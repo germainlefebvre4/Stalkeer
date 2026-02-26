@@ -631,6 +631,151 @@ func TestMatchTVShowByTMDB(t *testing.T) {
 	}
 }
 
+func TestFindMovieDownloadCandidates(t *testing.T) {
+	db := setupTestDB(t)
+
+	movie := models.Movie{TMDBID: 603, TMDBTitle: "The Matrix", TMDBYear: 1999}
+	if err := db.Create(&movie).Error; err != nil {
+		t.Fatalf("failed to create movie: %v", err)
+	}
+
+	res720p := "720p"
+	res1080p := "1080p"
+	res4K := "4K"
+
+	lineURL := "http://example.com/stream.mkv"
+	lines := []models.ProcessedLine{
+		{
+			MovieID: &movie.ID, TvgName: "The Matrix 4K", LineURL: &lineURL,
+			LineContent: "#EXTINF", LineHash: "hash-4k", GroupTitle: "Movies",
+			ContentType: models.ContentTypeMovies, State: models.StateProcessed,
+			Resolution: &res4K,
+		},
+		{
+			MovieID: &movie.ID, TvgName: "The Matrix 720p", LineURL: &lineURL,
+			LineContent: "#EXTINF", LineHash: "hash-720p", GroupTitle: "Movies",
+			ContentType: models.ContentTypeMovies, State: models.StateProcessed,
+			Resolution: &res720p,
+		},
+		{
+			MovieID: &movie.ID, TvgName: "The Matrix 1080p", LineURL: &lineURL,
+			LineContent: "#EXTINF", LineHash: "hash-1080p", GroupTitle: "Movies",
+			ContentType: models.ContentTypeMovies, State: models.StateProcessed,
+			Resolution: &res1080p,
+		},
+	}
+
+	for i := range lines {
+		if err := db.Create(&lines[i]).Error; err != nil {
+			t.Fatalf("failed to create processed line: %v", err)
+		}
+	}
+
+	candidates, err := FindMovieDownloadCandidates(db, movie.ID)
+	if err != nil {
+		t.Fatalf("FindMovieDownloadCandidates returned error: %v", err)
+	}
+
+	if len(candidates) != 3 {
+		t.Fatalf("expected 3 candidates, got %d", len(candidates))
+	}
+
+	// First must be 720p
+	if candidates[0].Resolution == nil || *candidates[0].Resolution != "720p" {
+		t.Errorf("expected first candidate resolution '720p', got %v", candidates[0].Resolution)
+	}
+	// Second must be 1080p
+	if candidates[1].Resolution == nil || *candidates[1].Resolution != "1080p" {
+		t.Errorf("expected second candidate resolution '1080p', got %v", candidates[1].Resolution)
+	}
+	// Third must be 4K
+	if candidates[2].Resolution == nil || *candidates[2].Resolution != "4K" {
+		t.Errorf("expected third candidate resolution '4K', got %v", candidates[2].Resolution)
+	}
+}
+
+func TestFindMovieDownloadCandidatesNilResolutionLast(t *testing.T) {
+	db := setupTestDB(t)
+
+	movie := models.Movie{TMDBID: 27205, TMDBTitle: "Inception", TMDBYear: 2010}
+	if err := db.Create(&movie).Error; err != nil {
+		t.Fatalf("failed to create movie: %v", err)
+	}
+
+	res1080p := "1080p"
+	lineURL := "http://example.com/stream.mkv"
+	lines := []models.ProcessedLine{
+		{
+			MovieID: &movie.ID, TvgName: "Inception", LineURL: &lineURL,
+			LineContent: "#EXTINF", LineHash: "hash-nil", GroupTitle: "Movies",
+			ContentType: models.ContentTypeMovies, State: models.StateProcessed,
+			Resolution: nil,
+		},
+		{
+			MovieID: &movie.ID, TvgName: "Inception 1080p", LineURL: &lineURL,
+			LineContent: "#EXTINF", LineHash: "hash-1080p-i", GroupTitle: "Movies",
+			ContentType: models.ContentTypeMovies, State: models.StateProcessed,
+			Resolution: &res1080p,
+		},
+	}
+
+	for i := range lines {
+		if err := db.Create(&lines[i]).Error; err != nil {
+			t.Fatalf("failed to create processed line: %v", err)
+		}
+	}
+
+	candidates, err := FindMovieDownloadCandidates(db, movie.ID)
+	if err != nil {
+		t.Fatalf("FindMovieDownloadCandidates returned error: %v", err)
+	}
+
+	if len(candidates) != 2 {
+		t.Fatalf("expected 2 candidates, got %d", len(candidates))
+	}
+
+	// 1080p must come before nil
+	if candidates[0].Resolution == nil || *candidates[0].Resolution != "1080p" {
+		t.Errorf("expected first candidate '1080p', got %v", candidates[0].Resolution)
+	}
+	if candidates[1].Resolution != nil {
+		t.Errorf("expected second candidate nil resolution, got '%s'", *candidates[1].Resolution)
+	}
+}
+
+func TestFindMovieDownloadCandidatesExcludesDownloaded(t *testing.T) {
+	db := setupTestDB(t)
+
+	movie := models.Movie{TMDBID: 155, TMDBTitle: "The Dark Knight", TMDBYear: 2008}
+	if err := db.Create(&movie).Error; err != nil {
+		t.Fatalf("failed to create movie: %v", err)
+	}
+
+	res720p := "720p"
+	lineURL := "http://example.com/stream.mkv"
+	lines := []models.ProcessedLine{
+		{
+			MovieID: &movie.ID, TvgName: "The Dark Knight 720p", LineURL: &lineURL,
+			LineContent: "#EXTINF", LineHash: "hash-dk-720p", GroupTitle: "Movies",
+			ContentType: models.ContentTypeMovies, State: models.StateDownloaded,
+			Resolution: &res720p,
+		},
+	}
+
+	if err := db.Create(&lines[0]).Error; err != nil {
+		t.Fatalf("failed to create processed line: %v", err)
+	}
+
+	candidates, err := FindMovieDownloadCandidates(db, movie.ID)
+	if err != nil {
+		t.Fatalf("FindMovieDownloadCandidates returned error: %v", err)
+	}
+
+	if len(candidates) != 0 {
+		t.Errorf("expected 0 candidates (downloaded excluded), got %d", len(candidates))
+	}
+}
+
 // setupTestDB creates an in-memory SQLite database for testing
 func setupTestDB(t *testing.T) *gorm.DB {
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})

@@ -142,6 +142,34 @@ func (m *Matcher) FindBestMovieMatch(line *models.ProcessedLine, movies []radarr
 	return bestMatch
 }
 
+// resolutionOrderSQL is a CASE expression that maps resolution strings to sort priority.
+// 720p (1) is preferred first, then 1080p, 4K, 480p, and unknown/nil last (5).
+const resolutionOrderSQL = "CASE resolution WHEN '720p' THEN 1 WHEN '1080p' THEN 2 WHEN '4K' THEN 3 WHEN '480p' THEN 4 ELSE 5 END ASC, created_at DESC"
+
+// FindMovieDownloadCandidates returns all eligible ProcessedLines for a movie ordered by
+// quality preference (720p → 1080p → 4K → 480p → nil) then by recency within the same tier.
+// Eligible states: processed, failed.
+func FindMovieDownloadCandidates(db *gorm.DB, movieID uint) ([]models.ProcessedLine, error) {
+	var candidates []models.ProcessedLine
+	err := db.Where("movie_id = ?", movieID).
+		Where("state IN ?", []string{string(models.StateProcessed), string(models.StateFailed)}).
+		Order(resolutionOrderSQL).
+		Find(&candidates).Error
+	return candidates, err
+}
+
+// FindTVShowDownloadCandidates returns all eligible ProcessedLines for a TV show episode
+// ordered by quality preference (720p → 1080p → 4K → 480p → nil) then by recency.
+// Eligible states: processed, failed.
+func FindTVShowDownloadCandidates(db *gorm.DB, tvshowID uint) ([]models.ProcessedLine, error) {
+	var candidates []models.ProcessedLine
+	err := db.Where("tv_show_id = ?", tvshowID).
+		Where("state IN ?", []string{string(models.StateProcessed), string(models.StateFailed)}).
+		Order(resolutionOrderSQL).
+		Find(&candidates).Error
+	return candidates, err
+}
+
 // MatchMovieByTVDB finds a movie in the database by TVDB ID with fallback to TMDB ID
 // Returns (movie, processedLine, confidence, error)
 func MatchMovieByTVDB(db *gorm.DB, tvdbID int, tmdbID int, title string, year int) (*models.Movie, *models.ProcessedLine, int, error) {

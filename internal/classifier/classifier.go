@@ -80,34 +80,16 @@ func (c *Classifier) ExtractSeasonEpisode(title string) (*int, *int) {
 	return nil, nil
 }
 
-// ExtractResolution attempts to extract resolution information from a title
+// ExtractResolution attempts to extract resolution information from a title.
+// Uses word-boundary regex patterns to avoid false positives (e.g. "FHD" must not match as "HD").
 func (c *Classifier) ExtractResolution(title string) *string {
-	titleLower := strings.ToLower(title)
-
-	// Check for 4K/UHD
-	if strings.Contains(titleLower, "4k") || strings.Contains(titleLower, "uhd") || strings.Contains(titleLower, "2160p") {
-		res := "4K"
-		return &res
+	resolutions := []string{"4K", "1080p", "720p", "480p"}
+	for i, pattern := range c.resolutionPatterns {
+		if pattern.MatchString(title) {
+			res := resolutions[i]
+			return &res
+		}
 	}
-
-	// Check for 1080p
-	if strings.Contains(titleLower, "1080p") || strings.Contains(titleLower, "fullhd") || strings.Contains(titleLower, "fhd") {
-		res := "1080p"
-		return &res
-	}
-
-	// Check for 720p
-	if strings.Contains(titleLower, "720p") || strings.Contains(titleLower, "hd") {
-		res := "720p"
-		return &res
-	}
-
-	// Check for 480p/SD
-	if strings.Contains(titleLower, "480p") || strings.Contains(titleLower, "sd") {
-		res := "480p"
-		return &res
-	}
-
 	return nil
 }
 

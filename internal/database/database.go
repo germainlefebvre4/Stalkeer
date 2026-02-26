@@ -113,7 +113,7 @@ func Close() error {
 }
 
 func runMigrations() error {
-	return db.AutoMigrate(
+	if err := db.AutoMigrate(
 		&models.Movie{},
 		&models.TVShow{},
 		&models.Channel{},
@@ -122,5 +122,21 @@ func runMigrations() error {
 		&models.ProcessingLog{},
 		&models.DownloadInfo{},
 		&models.ProcessedLine{},
-	)
+	); err != nil {
+		return err
+	}
+
+	// Drop legacy columns removed from ProcessedLine (overrides feature was never used).
+	// Use raw SQL with IF EXISTS so this is idempotent across environments.
+	migrations := []string{
+		"ALTER TABLE processed_lines DROP COLUMN IF EXISTS overrides_id",
+		"ALTER TABLE processed_lines DROP COLUMN IF EXISTS overrides_at",
+	}
+	for _, stmt := range migrations {
+		if err := db.Exec(stmt).Error; err != nil {
+			return fmt.Errorf("migration failed (%s): %w", stmt, err)
+		}
+	}
+
+	return nil
 }

@@ -251,6 +251,9 @@ func (p *Processor) checkDuplicate(lineHash string) (bool, error) {
 
 // setContentType sets the content type and creates necessary associations with TMDB enrichment
 func (p *Processor) setContentType(line *models.ProcessedLine, classification classifier.Classification, opts *ProcessOptions, stats *Statistics) error {
+	// Persist resolution detected by the classifier
+	line.Resolution = classification.Resolution
+
 	// Determine language for TMDB
 	language := opts.TMDBLanguage
 	if language == "" {

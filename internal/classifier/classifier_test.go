@@ -193,6 +193,22 @@ func TestExtractResolution(t *testing.T) {
 			title:    "Movie Title 4k",
 			expected: strPtr("4K"),
 		},
+		// Word-boundary tests: ensure partial substring matches don't cause false positives
+		{
+			name:     "FHD does not match as HD (word boundary)",
+			title:    "Inception FHD",
+			expected: strPtr("1080p"),
+		},
+		{
+			name:     "UHD does not match as HD (word boundary)",
+			title:    "Inception UHD",
+			expected: strPtr("4K"),
+		},
+		{
+			name:     "HD as standalone word returns 720p",
+			title:    "Inception HD",
+			expected: strPtr("720p"),
+		},
 	}
 
 	for _, tt := range tests {
