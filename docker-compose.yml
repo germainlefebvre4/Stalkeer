@@ -17,7 +17,7 @@ x-stalkeer-volumes: &stalkeer-volumes
 
 x-stalkeer-environment: &stalkeer-environment
   DB_HOST: ${DB_HOST:-postgres}
-  DB_PORT: ${DB_PORT:-5433}
+  DB_PORT: ${DB_PORT:-5432}
   DB_USER: ${DB_USER:-postgres}
   DB_PASSWORD: ${DB_PASSWORD:-postgres}
   DB_NAME: ${DB_NAME:-stalkeer}
@@ -75,7 +75,7 @@ services:
     networks:
       - stalkeer-network
 
-  stalkeer-server:
+  server:
     build: *stalkeer-build
     image: germainlefebvre4/stalkeer:${VERSION:-dev}
     container_name: stalkeer-server
@@ -123,11 +123,37 @@ services:
       - stalkeer-network
     deploy: *stalkeer-resources
 
+  radarr-sync:
+    build: *stalkeer-build
+    image: germainlefebvre4/stalkeer:${VERSION:-dev}
+    container_name: stalkeer-radarr-sync
+    command: ["./stalkeer", "radarr", "--config", "/app/config/config.yml"]
+    depends_on: *stalkeer-depends-on
+    volumes: *stalkeer-volumes
+    environment: *stalkeer-environment
+    restart: no
+    networks:
+      - stalkeer-network
+    deploy: *stalkeer-resources
+
   resume-downloads:
     build: *stalkeer-build
     image: germainlefebvre4/stalkeer:${VERSION:-dev}
     container_name: stalkeer-resume-downloads
     command: ["./stalkeer", "resume-downloads", "--config", "/app/config/config.yml"]
+    depends_on: *stalkeer-depends-on
+    volumes: *stalkeer-volumes
+    environment: *stalkeer-environment
+    restart: no
+    networks:
+      - stalkeer-network
+    deploy: *stalkeer-resources
+
+  m3u-download:
+    build: *stalkeer-build
+    image: germainlefebvre4/stalkeer:${VERSION:-dev}
+    container_name: stalkeer-m3u-download
+    command: ["./stalkeer", "m3u-download", "--config", "/app/config/config.yml"]
     depends_on: *stalkeer-depends-on
     volumes: *stalkeer-volumes
     environment: *stalkeer-environment

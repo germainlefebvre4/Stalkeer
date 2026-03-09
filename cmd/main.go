@@ -473,10 +473,9 @@ and download matched items from M3U playlist stream URLs.`,
 		for i, movie := range missingMovies {
 			fmt.Printf("[%d/%d] Processing: %s (%d)\n", i+1, len(missingMovies), movie.Title, movie.Year)
 
-			// Match against database - try TVDB first, then TMDB
-			// Note: Radarr doesn't provide TVDB ID, so we rely on TMDB ID and database TVDB storage
+			// Match against database using TVDB ID as primary key, falling back to TMDB ID then fuzzy title/year
 			dbMovie, _, confidence, err := matcher.MatchMovieByTVDB(
-				db, 0, movie.TMDBID, movie.Title, movie.Year,
+				db, movie.TvdbID, movie.TMDBID, movie.Title, movie.Year,
 			)
 
 			if err != nil {
@@ -489,6 +488,17 @@ and download matched items from M3U playlist stream URLs.`,
 
 			fmt.Printf("  Matched: %s (%d) - Confidence: %d%%\n", dbMovie.TMDBTitle, dbMovie.TMDBYear, confidence)
 			stats.Matched++
+
+			// Backfill TVDB ID from Radarr if missing in the database
+			if movie.TvdbID != 0 && dbMovie.TVDBID == nil {
+				tvdbID := movie.TvdbID
+				if err := db.Model(&dbMovie).Update("tvdb_id", tvdbID).Error; err == nil {
+					dbMovie.TVDBID = &tvdbID
+					if verbose {
+						fmt.Printf("  Backfilled tvdb_id=%d from Radarr\n", tvdbID)
+					}
+				}
+			}
 
 			// Check if already downloaded (unless force)
 			if !force {
@@ -532,9 +542,10 @@ and download matched items from M3U playlist stream URLs.`,
 				continue
 			}
 
-			// Download - use Radarr's configured path for the movie
+			// Download - use configured local path + movie folder from Radarr
 			baseDestPath := filepath.Join(
-				movie.Path,
+				cfg.Downloads.MoviesPath,
+				filepath.Base(movie.Path),
 				fmt.Sprintf("%s (%d)", sanitizeFilename(movie.Title), movie.Year),
 			)
 
@@ -794,9 +805,10 @@ and download matched items from M3U playlist stream URLs.`,
 				continue
 			}
 
-			// Download - use Sonarr's configured path for the series
+			// Download - use configured local path + series folder from Sonarr
 			baseDestPath := filepath.Join(
-				series.Path,
+				cfg.Downloads.TVShowsPath,
+				filepath.Base(series.Path),
 				fmt.Sprintf("Season %02d", episode.SeasonNumber),
 				fmt.Sprintf("%s - S%02dE%02d", sanitizeFilename(series.Title), episode.SeasonNumber, episode.EpisodeNumber),
 			)

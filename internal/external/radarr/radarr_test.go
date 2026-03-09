@@ -165,6 +165,30 @@ func TestUpdateMovie(t *testing.T) {
 	}
 }
 
+func TestMovieTvdbIDDeserialization(t *testing.T) {
+	t.Run("with tvdbId field", func(t *testing.T) {
+		payload := `{"id":1,"title":"Test Movie","year":2020,"tvdbId":12345,"tmdbId":99}`
+		var m Movie
+		if err := json.Unmarshal([]byte(payload), &m); err != nil {
+			t.Fatalf("unexpected unmarshal error: %v", err)
+		}
+		if m.TvdbID != 12345 {
+			t.Errorf("expected TvdbID 12345, got %d", m.TvdbID)
+		}
+	})
+
+	t.Run("without tvdbId field", func(t *testing.T) {
+		payload := `{"id":2,"title":"No TVDB Movie","year":2021,"tmdbId":42}`
+		var m Movie
+		if err := json.Unmarshal([]byte(payload), &m); err != nil {
+			t.Fatalf("unexpected unmarshal error: %v", err)
+		}
+		if m.TvdbID != 0 {
+			t.Errorf("expected TvdbID 0 when field absent, got %d", m.TvdbID)
+		}
+	})
+}
+
 func TestClientRetry(t *testing.T) {
 	attempts := 0
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

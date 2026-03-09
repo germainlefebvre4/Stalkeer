@@ -7,7 +7,7 @@ Defines how the processor normalizes raw M3U entry titles before querying extern
 ## Requirements
 
 ### Requirement: Strip quality suffixes from movie titles
-Before querying TMDB, the processor SHALL remove quality and language suffixes from M3U titles. The following suffixes SHALL be stripped (case-insensitive, preceded by whitespace): `SD`, `HD`, `FHD`, `UHD`, `4K`, `MULTI`, `VOSTFR`, `VF`.
+Before querying TMDB, the processor SHALL remove quality and language suffixes from M3U titles. The following suffixes SHALL be stripped (case-insensitive, matched as whole words using word-boundary rules): `SD`, `HD`, `FHD`, `UHD`, `4K`, `MULTI`, `VOSTFR`, `VF`.
 
 #### Scenario: Strip trailing SD suffix
 - **WHEN** a movie title is `"Wonder Woman SD"`
@@ -24,6 +24,31 @@ Before querying TMDB, the processor SHALL remove quality and language suffixes f
 #### Scenario: Title without suffix is unchanged
 - **WHEN** a movie title has no quality suffix (e.g., `"Inception (2010)"`)
 - **THEN** the title sent to TMDB SHALL be `"Inception"` with year `2010`
+
+### Requirement: Resolution extraction uses word-boundary matching
+The classifier's `ExtractResolution()` function SHALL use precompiled word-boundary regex patterns to detect resolution. Detection SHALL NOT use substring matching (`strings.Contains`) to avoid false positives on partial matches.
+
+Recognized resolution values and their patterns (case-insensitive, whole-word):
+- `"4K"`: matches `4K`, `UHD`, `2160p`
+- `"1080p"`: matches `1080p`, `FullHD`, `FHD`
+- `"720p"`: matches `720p`, `HD`
+- `"480p"`: matches `480p`, `SD`
+
+#### Scenario: HD matches 720p exactly
+- **WHEN** a title is `"Inception HD"`
+- **THEN** `ExtractResolution()` SHALL return `"720p"`
+
+#### Scenario: FHD does not match 720p via partial HD match
+- **WHEN** a title is `"Inception FHD"`
+- **THEN** `ExtractResolution()` SHALL return `"1080p"` (not `"720p"`)
+
+#### Scenario: UHD does not match 720p via partial HD match
+- **WHEN** a title is `"Inception UHD"`
+- **THEN** `ExtractResolution()` SHALL return `"4K"` (not `"720p"`)
+
+#### Scenario: No quality marker returns nil
+- **WHEN** a title is `"Inception"`
+- **THEN** `ExtractResolution()` SHALL return `nil`
 
 ### Requirement: Extract year from "Titre - YYYY" format
 The processor SHALL recognize the format `<title> - <YYYY>` (where YYYY is a 4-digit year between 1900 and 2100) and extract the year separately from the title.

@@ -34,6 +34,7 @@ type Movie struct {
 	ID               int       `json:"id"`
 	Title            string    `json:"title"`
 	Year             int       `json:"year"`
+	TvdbID           int       `json:"tvdbId"`
 	TMDBID           int       `json:"tmdbId"`
 	Path             string    `json:"path"`
 	Monitored        bool      `json:"monitored"`

@@ -123,12 +123,12 @@ db-migrate:
 
 ## db-drop-create: Drop and create the database
 db-drop-create:
-	PGPASSWORD=postgres psql -h localhost -U postgres -c "DROP DATABASE stalkeer;" || true
-	PGPASSWORD=postgres psql -h localhost -U postgres -c "CREATE DATABASE stalkeer;"
+	PGPASSWORD=postgres psql -h localhost -p 5433 -U postgres -c "DROP DATABASE stalkeer;" || true
+	PGPASSWORD=postgres psql -h localhost -p 5433 -U postgres -c "CREATE DATABASE stalkeer;"
 
 ## db-truncate-tables: Truncate all main tables in the database
 db-truncate-tables:
-	PGPASSWORD=postgres psql -h localhost -U postgres -d stalkeer -c "TRUNCATE channels, movies, tvshows, uncategorized, processed_lines, processing_logs, download_info RESTART IDENTITY CASCADE;"
+	PGPASSWORD=postgres psql -h localhost -p 5433 -U postgres -d stalkeer -c "TRUNCATE channels, movies, tvshows, uncategorized, processed_lines, processing_logs, download_info RESTART IDENTITY CASCADE;"
 
 ## download-sample-videos: Download sample video files for testing
 download-sample-videos:
