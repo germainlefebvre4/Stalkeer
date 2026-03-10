@@ -144,6 +144,7 @@ func init() {
 	resumeDownloadsCmd.Flags().Bool("clean-stale-locks", true, "clean up stale download locks before resuming")
 	resumeDownloadsCmd.Flags().BoolP("verbose", "v", false, "verbose output")
 	resumeDownloadsCmd.Flags().String("service", "all", "filter by service type: all, radarr, sonarr")
+	rootCmd.AddCommand(resumeDownloadsCmd)
 }
 
 func normalizeServiceFilter(service string) (string, error) {

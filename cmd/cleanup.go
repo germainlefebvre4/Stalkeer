@@ -50,3 +50,9 @@ crashes before completing the move to the final destination.`,
 		fmt.Println("\nCleanup complete!")
 	},
 }
+
+func init() {
+	cleanupCmd.Flags().Bool("dry-run", false, "preview cleanup without deleting files")
+	cleanupCmd.Flags().Int("retention-hours", 24, "delete temp files older than this many hours")
+	rootCmd.AddCommand(cleanupCmd)
+}

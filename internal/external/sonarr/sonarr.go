@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/glefebvre/stalkeer/internal/errors"
+	apperrors "github.com/glefebvre/stalkeer/internal/apperrors"
 	"github.com/glefebvre/stalkeer/internal/retry"
 )
 
@@ -89,10 +89,10 @@ func (c *Client) GetMissingSeries(ctx context.Context) ([]Series, error) {
 		}
 		allSeries = series
 		return nil
-	}, errors.IsRetryable)
+	}, apperrors.IsRetryable)
 
 	if err != nil {
-		return nil, errors.ExternalServiceError("sonarr", "failed to get series", err)
+		return nil, apperrors.ExternalServiceError("sonarr", "failed to get series", err)
 	}
 
 	// Filter for monitored series with missing episodes
@@ -118,10 +118,10 @@ func (c *Client) GetSeriesDetails(ctx context.Context, id int) (*Series, error) 
 		}
 		series = *s
 		return nil
-	}, errors.IsRetryable)
+	}, apperrors.IsRetryable)
 
 	if err != nil {
-		return nil, errors.ExternalServiceError("sonarr", "failed to get series details", err)
+		return nil, apperrors.ExternalServiceError("sonarr", "failed to get series details", err)
 	}
 
 	return &series, nil
@@ -142,10 +142,10 @@ func (c *Client) GetMissingEpisodes(ctx context.Context) ([]Episode, error) {
 		}
 		episodes = eps
 		return nil
-	}, errors.IsRetryable)
+	}, apperrors.IsRetryable)
 
 	if err != nil {
-		return nil, errors.ExternalServiceError("sonarr", "failed to get missing episodes", err)
+		return nil, apperrors.ExternalServiceError("sonarr", "failed to get missing episodes", err)
 	}
 
 	return episodes, nil
@@ -163,10 +163,10 @@ func (c *Client) GetEpisodeDetails(ctx context.Context, id int) (*Episode, error
 		}
 		episode = *ep
 		return nil
-	}, errors.IsRetryable)
+	}, apperrors.IsRetryable)
 
 	if err != nil {
-		return nil, errors.ExternalServiceError("sonarr", "failed to get episode details", err)
+		return nil, apperrors.ExternalServiceError("sonarr", "failed to get episode details", err)
 	}
 
 	return &episode, nil
@@ -178,10 +178,10 @@ func (c *Client) UpdateEpisode(ctx context.Context, episode *Episode) error {
 
 	err := retry.Do(ctx, c.retryConfig, func() error {
 		return c.putEpisode(ctx, endpoint, episode)
-	}, errors.IsRetryable)
+	}, apperrors.IsRetryable)
 
 	if err != nil {
-		return errors.ExternalServiceError("sonarr", "failed to update episode", err)
+		return apperrors.ExternalServiceError("sonarr", "failed to update episode", err)
 	}
 
 	return nil

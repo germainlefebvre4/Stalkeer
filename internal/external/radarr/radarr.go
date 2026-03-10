@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/glefebvre/stalkeer/internal/errors"
+	apperrors "github.com/glefebvre/stalkeer/internal/apperrors"
 	"github.com/glefebvre/stalkeer/internal/retry"
 )
 
@@ -76,10 +76,10 @@ func (c *Client) GetMissingMovies(ctx context.Context) ([]Movie, error) {
 		}
 		allMovies = movies
 		return nil
-	}, errors.IsRetryable)
+	}, apperrors.IsRetryable)
 
 	if err != nil {
-		return nil, errors.ExternalServiceError("radarr", "failed to get movies", err)
+		return nil, apperrors.ExternalServiceError("radarr", "failed to get movies", err)
 	}
 
 	// Filter for monitored movies without files
@@ -105,10 +105,10 @@ func (c *Client) GetMovieDetails(ctx context.Context, id int) (*Movie, error) {
 		}
 		movie = *m
 		return nil
-	}, errors.IsRetryable)
+	}, apperrors.IsRetryable)
 
 	if err != nil {
-		return nil, errors.ExternalServiceError("radarr", "failed to get movie details", err)
+		return nil, apperrors.ExternalServiceError("radarr", "failed to get movie details", err)
 	}
 
 	return &movie, nil
@@ -120,10 +120,10 @@ func (c *Client) UpdateMovie(ctx context.Context, movie *Movie) error {
 
 	err := retry.Do(ctx, c.retryConfig, func() error {
 		return c.putMovie(ctx, endpoint, movie)
-	}, errors.IsRetryable)
+	}, apperrors.IsRetryable)
 
 	if err != nil {
-		return errors.ExternalServiceError("radarr", "failed to update movie", err)
+		return apperrors.ExternalServiceError("radarr", "failed to update movie", err)
 	}
 
 	return nil

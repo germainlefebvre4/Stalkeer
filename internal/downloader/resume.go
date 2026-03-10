@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/glefebvre/stalkeer/internal/errors"
+	apperrors "github.com/glefebvre/stalkeer/internal/apperrors"
 	"github.com/glefebvre/stalkeer/internal/logger"
 	"github.com/glefebvre/stalkeer/internal/models"
 )
@@ -157,7 +157,7 @@ func (rs *ResumeSupport) HandleResumeResponse(resp *http.Response, expectedStart
 	if resp.StatusCode == http.StatusOK {
 		// Server doesn't support ranges or is sending full file
 		logger.AppLogger().Warn("server doesn't support range requests, restarting download")
-		return errors.ValidationError("server does not support resume")
+		return apperrors.ValidationError("server does not support resume")
 	}
 
 	return fmt.Errorf("unexpected status code: %d", resp.StatusCode)
@@ -194,7 +194,7 @@ type ResumeInfo struct {
 // ExtractResumeInfo gets resume information from a download record
 func (rs *ResumeSupport) ExtractResumeInfo(download *models.DownloadInfo, tempDir string) (*ResumeInfo, error) {
 	if !download.HasPartialDownload() {
-		return nil, errors.ValidationError("no partial download information")
+		return nil, apperrors.ValidationError("no partial download information")
 	}
 
 	info := &ResumeInfo{

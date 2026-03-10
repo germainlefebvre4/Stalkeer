@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	apperrors "github.com/glefebvre/stalkeer/internal/errors"
+	"github.com/glefebvre/stalkeer/internal/apperrors"
 	"github.com/glefebvre/stalkeer/internal/logger"
 	"github.com/glefebvre/stalkeer/internal/models"
 )

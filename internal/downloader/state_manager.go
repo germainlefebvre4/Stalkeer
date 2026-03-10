@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/glefebvre/stalkeer/internal/database"
-	"github.com/glefebvre/stalkeer/internal/errors"
+	apperrors "github.com/glefebvre/stalkeer/internal/apperrors"
 	"github.com/glefebvre/stalkeer/internal/logger"
 	"github.com/glefebvre/stalkeer/internal/models"
 	"gorm.io/gorm"
@@ -85,11 +85,11 @@ func (sm *StateManager) AcquireLock(ctx context.Context, downloadID uint) error 
 		})
 
 	if result.Error != nil {
-		return errors.Wrap(result.Error, errors.CodeInternal, "failed to acquire download lock")
+		return apperrors.Wrap(result.Error, apperrors.CodeInternal, "failed to acquire download lock")
 	}
 
 	if result.RowsAffected == 0 {
-		return errors.ValidationError("download is locked by another process")
+		return apperrors.ValidationError("download is locked by another process")
 	}
 
 	log.WithFields(map[string]interface{}{
@@ -113,7 +113,7 @@ func (sm *StateManager) ReleaseLock(ctx context.Context, downloadID uint) error 
 		})
 
 	if result.Error != nil {
-		return errors.Wrap(result.Error, errors.CodeInternal, "failed to release download lock")
+		return apperrors.Wrap(result.Error, apperrors.CodeInternal, "failed to release download lock")
 	}
 
 	log.WithFields(map[string]interface{}{
@@ -138,7 +138,7 @@ func (sm *StateManager) CleanupStaleLocks(ctx context.Context) error {
 		})
 
 	if result.Error != nil {
-		return errors.Wrap(result.Error, errors.CodeInternal, "failed to cleanup stale locks")
+		return apperrors.Wrap(result.Error, apperrors.CodeInternal, "failed to cleanup stale locks")
 	}
 
 	if result.RowsAffected > 0 {
@@ -188,7 +188,7 @@ func (sm *StateManager) UpdateState(ctx context.Context, downloadID uint, newSta
 		Updates(updates)
 
 	if result.Error != nil {
-		return errors.Wrap(result.Error, errors.CodeInternal, "failed to update download state")
+		return apperrors.Wrap(result.Error, apperrors.CodeInternal, "failed to update download state")
 	}
 
 	log.WithFields(map[string]interface{}{
@@ -269,7 +269,7 @@ func (sm *StateManager) GetIncompleteDownloads(ctx context.Context, maxRetries i
 
 	result := query.Find(&downloads)
 	if result.Error != nil {
-		return nil, errors.Wrap(result.Error, errors.CodeInternal, "failed to query incomplete downloads")
+		return nil, apperrors.Wrap(result.Error, apperrors.CodeInternal, "failed to query incomplete downloads")
 	}
 
 	log.WithFields(map[string]interface{}{
@@ -285,9 +285,9 @@ func (sm *StateManager) GetDownloadByID(ctx context.Context, downloadID uint) (*
 	result := sm.db.WithContext(ctx).First(&download, downloadID)
 	if result.Error != nil {
 		if result.Error == gorm.ErrRecordNotFound {
-			return nil, errors.NotFoundError("download", fmt.Sprintf("ID %d", downloadID))
+			return nil, apperrors.NotFoundError("download", fmt.Sprintf("ID %d", downloadID))
 		}
-		return nil, errors.Wrap(result.Error, errors.CodeInternal, "failed to get download record")
+		return nil, apperrors.Wrap(result.Error, apperrors.CodeInternal, "failed to get download record")
 	}
 	return &download, nil
 }
@@ -300,7 +300,7 @@ func (sm *StateManager) CreateDownloadRecord(ctx context.Context, status models.
 
 	result := sm.db.WithContext(ctx).Create(download)
 	if result.Error != nil {
-		return nil, errors.Wrap(result.Error, errors.CodeInternal, "failed to create download record")
+		return nil, apperrors.Wrap(result.Error, apperrors.CodeInternal, "failed to create download record")
 	}
 
 	return download, nil
@@ -317,7 +317,7 @@ func (sm *StateManager) GetDownloadsByProcessedLineID(ctx context.Context, proce
 		Find(&downloads)
 
 	if result.Error != nil {
-		return nil, errors.Wrap(result.Error, errors.CodeInternal, "failed to query downloads by processed line")
+		return nil, apperrors.Wrap(result.Error, apperrors.CodeInternal, "failed to query downloads by processed line")
 	}
 
 	return downloads, nil

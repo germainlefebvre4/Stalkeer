@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/glefebvre/stalkeer/internal/database"
-	"github.com/glefebvre/stalkeer/internal/errors"
+	apperrors "github.com/glefebvre/stalkeer/internal/apperrors"
 	"github.com/glefebvre/stalkeer/internal/logger"
 	"github.com/glefebvre/stalkeer/internal/models"
 	"github.com/glefebvre/stalkeer/internal/retry"
@@ -89,10 +89,10 @@ func (d *Downloader) Download(ctx context.Context, opts DownloadOptions) (*Downl
 
 	// Validate inputs
 	if opts.URL == "" {
-		return nil, errors.ValidationError("download URL cannot be empty")
+		return nil, apperrors.ValidationError("download URL cannot be empty")
 	}
 	if opts.BaseDestPath == "" {
-		return nil, errors.ValidationError("base destination path cannot be empty")
+		return nil, apperrors.ValidationError("base destination path cannot be empty")
 	}
 
 	// Create or get DownloadInfo record and acquire lock
@@ -111,7 +111,7 @@ func (d *Downloader) Download(ctx context.Context, opts DownloadOptions) (*Downl
 				"download_id": downloadInfoID,
 				"error":       err,
 			}).Warn("failed to acquire download lock, skipping")
-			return nil, errors.ValidationError("download is locked by another process")
+			return nil, apperrors.ValidationError("download is locked by another process")
 		}
 		defer func() {
 			// Always release lock on exit (success or failure)
@@ -143,7 +143,7 @@ func (d *Downloader) Download(ctx context.Context, opts DownloadOptions) (*Downl
 	}
 	tempDownloadDir := filepath.Join(tempDir, fmt.Sprintf("stalkeer-download-%s", uuid.New().String()))
 	if err := os.MkdirAll(tempDownloadDir, 0755); err != nil {
-		return nil, errors.Wrap(err, errors.CodeInternal, "failed to create temp directory")
+		return nil, apperrors.Wrap(err, apperrors.CodeInternal, "failed to create temp directory")
 	}
 	defer os.RemoveAll(tempDownloadDir) // Clean up temp dir
 
@@ -199,7 +199,7 @@ func (d *Downloader) Download(ctx context.Context, opts DownloadOptions) (*Downl
 		result = res
 		contentType = ct
 		return nil
-	}, errors.IsRetryable)
+	}, apperrors.IsRetryable)
 
 	if err != nil {
 		// Update download info on failure
@@ -218,7 +218,7 @@ func (d *Downloader) Download(ctx context.Context, opts DownloadOptions) (*Downl
 				}).Warn("failed to update processed line state to failed")
 			}
 		}
-		return nil, errors.ExternalServiceError("download", "failed to download file", err)
+		return nil, apperrors.ExternalServiceError("download", "failed to download file", err)
 	}
 
 	// Detect file extension
@@ -231,7 +231,7 @@ func (d *Downloader) Download(ctx context.Context, opts DownloadOptions) (*Downl
 	// Create destination directory
 	destDir := filepath.Dir(finalDestPath)
 	if err := os.MkdirAll(destDir, 0755); err != nil {
-		return nil, errors.Wrap(err, errors.CodeInternal, "failed to create destination directory")
+		return nil, apperrors.Wrap(err, apperrors.CodeInternal, "failed to create destination directory")
 	}
 
 	// Update state to organizing
@@ -268,12 +268,12 @@ func (d *Downloader) Download(ctx context.Context, opts DownloadOptions) (*Downl
 				}).Warn("failed to update processed line state to failed")
 			}
 		}
-		return nil, errors.Wrap(err, errors.CodeInternal, "failed to move file to destination")
+		return nil, apperrors.Wrap(err, apperrors.CodeInternal, "failed to move file to destination")
 	}
 
 	// Set proper file permissions
 	if err := os.Chmod(finalDestPath, 0644); err != nil {
-		return nil, errors.Wrap(err, errors.CodeInternal, "failed to set file permissions")
+		return nil, apperrors.Wrap(err, apperrors.CodeInternal, "failed to set file permissions")
 	}
 
 	result.FilePath = finalDestPath
@@ -338,7 +338,7 @@ func (d *Downloader) downloadFileWithResume(ctx context.Context, url, destPath s
 	if startByte > 0 {
 		if err := d.resumeSupport.HandleResumeResponse(resp, startByte); err != nil {
 			// If resume not supported, we'll restart from beginning
-			if errors.IsValidationError(err) {
+			if apperrors.IsValidationError(err) {
 				logger.AppLogger().Warn("resume not supported, restarting download from beginning")
 				return d.downloadFileWithResume(ctx, url, destPath, 0, onProgress)
 			}
@@ -403,20 +403,20 @@ func (d *Downloader) downloadFileWithResume(ctx context.Context, url, destPath s
 func (d *Downloader) getOrCreateDownloadInfo(ctx context.Context, processedLineID uint, url string) (*models.DownloadInfo, error) {
 	db := database.Get()
 	if db == nil {
-		return nil, errors.New(errors.CodeInternal, "database not initialized")
+		return nil, apperrors.New(apperrors.CodeInternal, "database not initialized")
 	}
 
 	// Get ProcessedLine
 	var processedLine models.ProcessedLine
 	if err := db.First(&processedLine, processedLineID).Error; err != nil {
-		return nil, errors.DatabaseError("failed to fetch processed line", err)
+		return nil, apperrors.DatabaseError("failed to fetch processed line", err)
 	}
 
 	// Check if DownloadInfo already exists
 	if processedLine.DownloadInfoID != nil {
 		var downloadInfo models.DownloadInfo
 		if err := db.First(&downloadInfo, *processedLine.DownloadInfoID).Error; err != nil {
-			return nil, errors.DatabaseError("failed to fetch download info", err)
+			return nil, apperrors.DatabaseError("failed to fetch download info", err)
 		}
 		return &downloadInfo, nil
 	}
@@ -430,7 +430,7 @@ func (d *Downloader) getOrCreateDownloadInfo(ctx context.Context, processedLineI
 	}
 
 	if err := db.Create(downloadInfo).Error; err != nil {
-		return nil, errors.DatabaseError("failed to create download info", err)
+		return nil, apperrors.DatabaseError("failed to create download info", err)
 	}
 
 	// Link to ProcessedLine
@@ -438,7 +438,7 @@ func (d *Downloader) getOrCreateDownloadInfo(ctx context.Context, processedLineI
 	if err := db.Model(&models.ProcessedLine{}).
 		Where("id = ?", processedLineID).
 		Update("download_info_id", &downloadInfoID).Error; err != nil {
-		return nil, errors.DatabaseError("failed to link download info to processed line", err)
+		return nil, apperrors.DatabaseError("failed to link download info to processed line", err)
 	}
 
 	return downloadInfo, nil
@@ -448,7 +448,7 @@ func (d *Downloader) getOrCreateDownloadInfo(ctx context.Context, processedLineI
 func (d *Downloader) updateDownloadInfoCompleted(ctx context.Context, downloadInfoID uint, filePath string, fileSize int64) error {
 	db := database.Get()
 	if db == nil {
-		return errors.New(errors.CodeInternal, "database not initialized")
+		return apperrors.New(apperrors.CodeInternal, "database not initialized")
 	}
 
 	now := time.Now()
@@ -466,7 +466,7 @@ func (d *Downloader) updateDownloadInfoCompleted(ctx context.Context, downloadIn
 	if err := db.Model(&models.DownloadInfo{}).
 		Where("id = ?", downloadInfoID).
 		Updates(updates).Error; err != nil {
-		return errors.DatabaseError("failed to update download info to completed", err)
+		return apperrors.DatabaseError("failed to update download info to completed", err)
 	}
 
 	return nil
@@ -476,7 +476,7 @@ func (d *Downloader) updateDownloadInfoCompleted(ctx context.Context, downloadIn
 func (d *Downloader) updateProcessedLineState(processedLineID uint, state models.ProcessingState) error {
 	db := database.Get()
 	if db == nil {
-		return errors.New(errors.CodeInternal, "database not initialized")
+		return apperrors.New(apperrors.CodeInternal, "database not initialized")
 	}
 
 	updates := map[string]interface{}{
@@ -487,7 +487,7 @@ func (d *Downloader) updateProcessedLineState(processedLineID uint, state models
 	if err := db.Model(&models.ProcessedLine{}).
 		Where("id = ?", processedLineID).
 		Updates(updates).Error; err != nil {
-		return errors.DatabaseError("failed to update processed line state", err)
+		return apperrors.DatabaseError("failed to update processed line state", err)
 	}
 
 	return nil
@@ -498,7 +498,7 @@ func (d *Downloader) updateProcessedLineState(processedLineID uint, state models
 func (d *Downloader) updateDownloadState(processedLineID uint, state models.ProcessingState, errorMsg *string) error {
 	db := database.Get()
 	if db == nil {
-		return errors.New(errors.CodeInternal, "database not initialized")
+		return apperrors.New(apperrors.CodeInternal, "database not initialized")
 	}
 
 	updates := map[string]interface{}{
@@ -508,7 +508,7 @@ func (d *Downloader) updateDownloadState(processedLineID uint, state models.Proc
 
 	var processedLine models.ProcessedLine
 	if err := db.First(&processedLine, processedLineID).Error; err != nil {
-		return errors.DatabaseError("failed to fetch processed line", err)
+		return apperrors.DatabaseError("failed to fetch processed line", err)
 	}
 
 	// Create or update DownloadInfo if error occurred
@@ -524,13 +524,13 @@ func (d *Downloader) updateDownloadState(processedLineID uint, state models.Proc
 			if err := db.Model(&models.DownloadInfo{}).
 				Where("id = ?", *processedLine.DownloadInfoID).
 				Updates(&downloadInfo).Error; err != nil {
-				return errors.DatabaseError("failed to update download info", err)
+				return apperrors.DatabaseError("failed to update download info", err)
 			}
 		} else {
 			// Create new
 			downloadInfo.CreatedAt = time.Now()
 			if err := db.Create(&downloadInfo).Error; err != nil {
-				return errors.DatabaseError("failed to create download info", err)
+				return apperrors.DatabaseError("failed to create download info", err)
 			}
 			downloadInfoID := downloadInfo.ID
 			updates["download_info_id"] = &downloadInfoID
@@ -540,7 +540,7 @@ func (d *Downloader) updateDownloadState(processedLineID uint, state models.Proc
 	if err := db.Model(&models.ProcessedLine{}).
 		Where("id = ?", processedLineID).
 		Updates(updates).Error; err != nil {
-		return errors.DatabaseError("failed to update processed line state", err)
+		return apperrors.DatabaseError("failed to update processed line state", err)
 	}
 
 	return nil
