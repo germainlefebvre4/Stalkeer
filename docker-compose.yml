@@ -74,6 +74,9 @@ services:
     restart: unless-stopped
     networks:
       - stalkeer-network
+    profiles:
+      - stalkerr
+      - development
 
   server:
     build: *stalkeer-build
@@ -96,6 +99,8 @@ services:
     networks:
       - stalkeer-network
     deploy: *stalkeer-resources
+    profiles:
+      - stalkerr
 
   process:
     build: *stalkeer-build
@@ -109,6 +114,8 @@ services:
     networks:
       - stalkeer-network
     deploy: *stalkeer-resources
+    profiles:
+      - stalkerr
 
   sonarr-sync:
     build: *stalkeer-build
@@ -122,6 +129,8 @@ services:
     networks:
       - stalkeer-network
     deploy: *stalkeer-resources
+    profiles:
+      - stalkerr
 
   radarr-sync:
     build: *stalkeer-build
@@ -135,6 +144,8 @@ services:
     networks:
       - stalkeer-network
     deploy: *stalkeer-resources
+    profiles:
+      - stalkerr
 
   resume-downloads:
     build: *stalkeer-build
@@ -148,6 +159,8 @@ services:
     networks:
       - stalkeer-network
     deploy: *stalkeer-resources
+    profiles:
+      - stalkerr
 
   m3u-download:
     build: *stalkeer-build
@@ -161,45 +174,53 @@ services:
     networks:
       - stalkeer-network
     deploy: *stalkeer-resources
+    profiles:
+      - stalkerr
 
   # DEVELOPMENT purpose only
-  # sonarr:
-  #   image: lscr.io/linuxserver/sonarr:latest
-  #   container_name: stalkeer-sonarr
-  #   environment: *linuxserver-environment
-  #   volumes:
-  #     - ./data/sonarr:/config
-  #     - ./data/downloads:/downloads
-  #   ports:
-  #     - "${SONARR_PORT:-8989}:8989"
-  #   restart: unless-stopped
-  #   networks:
-  #     - stalkeer-network
+  sonarr:
+    image: lscr.io/linuxserver/sonarr:latest
+    container_name: stalkeer-sonarr
+    environment: *linuxserver-environment
+    volumes:
+      - ./data/sonarr:/config
+      - ./data/downloads:/downloads
+    ports:
+      - "${SONARR_PORT:-8989}:8989"
+    restart: unless-stopped
+    networks:
+      - stalkeer-network
+    profiles:
+      - development
 
-  # radarr:
-  #   image: lscr.io/linuxserver/radarr:latest
-  #   container_name: stalkeer-radarr
-  #   environment: *linuxserver-environment
-  #   volumes:
-  #     - ./data/radarr:/config
-  #     - ./data/downloads:/downloads
-  #   ports:
-  #     - "${RADARR_PORT:-7878}:7878"
-  #   restart: unless-stopped
-  #   networks:
-  #     - stalkeer-network
+  radarr:
+    image: lscr.io/linuxserver/radarr:latest
+    container_name: stalkeer-radarr
+    environment: *linuxserver-environment
+    volumes:
+      - ./data/radarr:/config
+      - ./data/downloads:/downloads
+    ports:
+      - "${RADARR_PORT:-7878}:7878"
+    restart: unless-stopped
+    networks:
+      - stalkeer-network
+    profiles:
+      - development
 
-  # web:
-  #   image: nginx:alpine
-  #   container_name: stalkeer-web
-  #   ports:
-  #     - "${WEB_PORT:-8008}:80"
-  #   volumes:
-  #     - ./webserver/nginx.conf:/etc/nginx/conf.d/default.conf
-  #     - ./webserver/html:/usr/share/nginx/html
-  #   restart: unless-stopped
-  #   networks:
-  #     - stalkeer-network
+  web:
+    image: nginx:alpine
+    container_name: stalkeer-web
+    ports:
+      - "${WEB_PORT:-8008}:80"
+    volumes:
+      - ./webserver/nginx.conf:/etc/nginx/conf.d/default.conf
+      - ./webserver/html:/usr/share/nginx/html
+    restart: unless-stopped
+    networks:
+      - stalkeer-network
+    profiles:
+      - development
 
 volumes:
   postgres_data:
