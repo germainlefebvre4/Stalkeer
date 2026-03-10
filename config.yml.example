@@ -92,7 +92,14 @@ sonarr:
 
 # Download settings
 downloads:
+  # Fallback base path for movie downloads. When using the radarr command, movie.Path
+  # from the Radarr API is used as the authoritative destination (supports multiple root
+  # folders). This value is only used when movie.Path is empty.
   movies_path: ./data/downloads/movies
+  # Fallback base path for TV show downloads. When using the sonarr command, series.Path
+  # from the Sonarr API is used as the authoritative destination (supports multiple root
+  # folders configured in Sonarr's Media Management). This value is only used when
+  # series.Path is empty.
   tvshows_path: ./data/downloads/tvshows
   temp_dir: ""  # Empty = use OS temp directory, or specify custom path
   max_parallel: 3  # Number of concurrent downloads

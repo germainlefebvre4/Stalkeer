@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"path/filepath"
 	"time"
 
 	"github.com/glefebvre/stalkeer/internal/config"
@@ -195,12 +194,14 @@ and download matched items from M3U playlist stream URLs.`,
 				continue
 			}
 
-			// Download - use configured local path + movie folder from Radarr
-			baseDestPath := filepath.Join(
-				cfg.Downloads.MoviesPath,
-				filepath.Base(movie.Path),
-				fmt.Sprintf("%s (%d)", sanitizeFilename(movie.Title), movie.Year),
+			// Download - use movie.Path from Radarr as the authoritative root so that
+			// movies assigned to secondary root folders land in the correct directory.
+			baseDestPath, usedFallback := buildRadarrDestPath(
+				movie.Path, cfg.Downloads.MoviesPath, movie.Title, movie.Year,
 			)
+			if usedFallback {
+				fmt.Printf("  Warning: movie.Path is empty for %q, falling back to movies_path\n", movie.Title)
+			}
 
 			downloaded := false
 			for j, candidate := range candidates {

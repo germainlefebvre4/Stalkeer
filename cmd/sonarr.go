@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"path/filepath"
 	"time"
 
 	"github.com/glefebvre/stalkeer/internal/config"
@@ -218,13 +217,15 @@ and download matched items from M3U playlist stream URLs.`,
 				continue
 			}
 
-			// Download - use configured local path + series folder from Sonarr
-			baseDestPath := filepath.Join(
-				cfg.Downloads.TVShowsPath,
-				filepath.Base(series.Path),
-				fmt.Sprintf("Season %02d", episode.SeasonNumber),
-				fmt.Sprintf("%s - S%02dE%02d", sanitizeFilename(series.Title), episode.SeasonNumber, episode.EpisodeNumber),
+			// Download - use series.Path from Sonarr as the authoritative root so that
+			// series assigned to secondary root folders land in the correct directory.
+			baseDestPath, usedFallback := buildSonarrDestPath(
+				series.Path, cfg.Downloads.TVShowsPath, series.Title,
+				episode.SeasonNumber, episode.EpisodeNumber,
 			)
+			if usedFallback {
+				fmt.Printf("  Warning: series.Path is empty for %q, falling back to tvshows_path\n", series.Title)
+			}
 
 			downloaded := false
 			for j, candidate := range candidates {
