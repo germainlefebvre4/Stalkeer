@@ -476,7 +476,7 @@ func TestMatchTVShowByTMDB(t *testing.T) {
 
 	// Create test TV shows
 	season1, episode1 := 1, 1
-	season1, episode2 := 1, 2
+	season1b, episode2 := 1, 2
 	season2, episode5 := 2, 5
 
 	tvshows := []models.TVShow{
@@ -489,7 +489,7 @@ func TestMatchTVShowByTMDB(t *testing.T) {
 		{
 			TMDBID:    1396,
 			TMDBTitle: "Breaking Bad",
-			Season:    &season1,
+			Season:    &season1b,
 			Episode:   &episode2,
 		},
 		{
@@ -628,6 +628,63 @@ func TestMatchTVShowByTMDB(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestMatchTVShowByTVDB(t *testing.T) {
+	// Setup in-memory database
+	db := setupTestDB(t)
+
+	season := 1
+	episode := 16
+	tvdbID := 73838
+
+	tvshow := models.TVShow{
+		TMDBID:    2004,
+		TVDBID:    &tvdbID,
+		TMDBTitle: "Malcolm",
+		Season:    &season,
+		Episode:   &episode,
+	}
+
+	if err := db.Create(&tvshow).Error; err != nil {
+		t.Fatalf("failed to create test tvshow: %v", err)
+	}
+
+	lineURL := "http://example.com/malcolm-s01e16.mkv"
+	processedLine := models.ProcessedLine{
+		TVShowID:    &tvshow.ID,
+		TvgName:     tvshow.TMDBTitle,
+		LineURL:     &lineURL,
+		LineContent: "#EXTINF:-1," + tvshow.TMDBTitle,
+		LineHash:    "tvdb-match-hash",
+		GroupTitle:  "TV Shows",
+		ContentType: models.ContentTypeTVShows,
+		State:       models.StateProcessed,
+	}
+
+	if err := db.Create(&processedLine).Error; err != nil {
+		t.Fatalf("failed to create processed line: %v", err)
+	}
+
+	matchedShow, matchedLine, confidence, err := MatchTVShowByTVDB(db, tvdbID, 0, "Malcolm in the Middle", season, episode)
+	if err != nil {
+		t.Fatalf("expected TVDB match, got error: %v", err)
+	}
+	if matchedShow == nil {
+		t.Fatal("expected tvshow, got nil")
+	}
+	if matchedLine == nil {
+		t.Fatal("expected processed line, got nil")
+	}
+	if matchedShow.ID != tvshow.ID {
+		t.Fatalf("expected tvshow ID %d, got %d", tvshow.ID, matchedShow.ID)
+	}
+	if matchedLine.ID != processedLine.ID {
+		t.Fatalf("expected processed line ID %d, got %d", processedLine.ID, matchedLine.ID)
+	}
+	if confidence != 100 {
+		t.Fatalf("expected confidence 100, got %d", confidence)
 	}
 }
 

@@ -106,11 +106,12 @@ docker-build:
 
 ## docker-build-versioned: Docker build with version
 docker-build-versioned:
-	docker build --build-arg VERSION=$(VERSION) -t $(REGISTRY)/$(BINARY_NAME):$(VERSION) -t $(REGISTRY)/$(BINARY_NAME):latest .
+	docker build --build-arg VERSION=$(VERSION) -t $(REGISTRY)/$(BINARY_NAME):$(VERSION) -t $(REGISTRY)/$(BINARY_NAME):$(COMMIT) -t $(REGISTRY)/$(BINARY_NAME):latest .
 
 ## docker-push: Docker push to registry
 docker-push:
 	docker push $(REGISTRY)/$(BINARY_NAME):$(VERSION)
+	docker push $(REGISTRY)/$(BINARY_NAME):$(COMMIT)
 	docker push $(REGISTRY)/$(BINARY_NAME):latest
 
 ## docker-build-push: Docker build and push to registry

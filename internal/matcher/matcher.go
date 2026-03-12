@@ -1,6 +1,7 @@
 package matcher
 
 import (
+	"errors"
 	"regexp"
 	"strings"
 	"unicode"
@@ -176,7 +177,7 @@ func MatchMovieByTVDB(db *gorm.DB, tvdbID int, tmdbID int, title string, year in
 	// Primary match: exact TVDB ID
 	if tvdbID > 0 {
 		var movie models.Movie
-		err := db.Where("tvdb_id = ?", tvdbID).First(&movie).Error
+		err := db.Where("tvdb_id = ?", tvdbID).Take(&movie).Error
 		if err == nil {
 			// Found exact TVDB match, get processed line
 			var processedLine models.ProcessedLine
@@ -189,6 +190,9 @@ func MatchMovieByTVDB(db *gorm.DB, tvdbID int, tmdbID int, title string, year in
 			}
 			return &movie, &processedLine, 100, nil
 		}
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil, 0, err
+		}
 	}
 
 	// Fallback to TMDB matching
@@ -200,7 +204,7 @@ func MatchMovieByTVDB(db *gorm.DB, tvdbID int, tmdbID int, title string, year in
 func MatchMovieByTMDB(db *gorm.DB, tmdbID int, title string, year int) (*models.Movie, *models.ProcessedLine, int, error) {
 	// Primary match: exact TMDB ID
 	var movie models.Movie
-	err := db.Where("tmdb_id = ?", tmdbID).First(&movie).Error
+	err := db.Where("tmdb_id = ?", tmdbID).Take(&movie).Error
 	if err == nil {
 		// Found exact TMDB match, get processed line
 		var processedLine models.ProcessedLine
@@ -212,6 +216,9 @@ func MatchMovieByTMDB(db *gorm.DB, tmdbID int, title string, year int) (*models.
 			return nil, nil, 0, err
 		}
 		return &movie, &processedLine, 100, nil
+	}
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, nil, 0, err
 	}
 
 	// Fallback: title and year fuzzy matching
@@ -270,15 +277,8 @@ func MatchTVShowByTVDB(db *gorm.DB, tvdbID int, tmdbID int, title string, season
 	// Primary match: exact TVDB ID + season + episode
 	if tvdbID > 0 {
 		var tvshow models.TVShow
-		query := db.Where("tvdb_id = ?", tvdbID)
-		if season > 0 {
-			query = query.Where("season = ?", season)
-		}
-		if episode > 0 {
-			query = query.Where("episode = ?", episode)
-		}
-
-		err := query.First(&tvshow).Error
+		query := applyTVShowEpisodeFilters(db.Where("tvdb_id = ?", tvdbID), season, episode)
+		err := query.Take(&tvshow).Error
 		if err == nil {
 			// Found exact TVDB match, get processed line
 			var processedLine models.ProcessedLine
@@ -291,6 +291,9 @@ func MatchTVShowByTVDB(db *gorm.DB, tvdbID int, tmdbID int, title string, season
 			}
 			return &tvshow, &processedLine, 100, nil
 		}
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil, 0, err
+		}
 	}
 
 	// Fallback to TMDB matching
@@ -302,15 +305,8 @@ func MatchTVShowByTVDB(db *gorm.DB, tvdbID int, tmdbID int, title string, season
 func MatchTVShowByTMDB(db *gorm.DB, tmdbID int, title string, season, episode int) (*models.TVShow, *models.ProcessedLine, int, error) {
 	// Primary match: exact TMDB ID + season + episode
 	var tvshow models.TVShow
-	query := db.Where("tmdb_id = ?", tmdbID)
-	if season > 0 {
-		query = query.Where("season = ?", season)
-	}
-	if episode > 0 {
-		query = query.Where("episode = ?", episode)
-	}
-
-	err := query.First(&tvshow).Error
+	query := applyTVShowEpisodeFilters(db.Where("tmdb_id = ?", tmdbID), season, episode)
+	err := query.Take(&tvshow).Error
 	if err == nil {
 		// Found exact match, get processed line
 		var processedLine models.ProcessedLine
@@ -322,6 +318,9 @@ func MatchTVShowByTMDB(db *gorm.DB, tmdbID int, title string, season, episode in
 			return nil, nil, 0, err
 		}
 		return &tvshow, &processedLine, 100, nil
+	}
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, nil, 0, err
 	}
 
 	// Fallback: title fuzzy matching with season/episode
@@ -393,14 +392,14 @@ func (m *Matcher) normalizeTitle(title string) string {
 	patterns := []string{
 		`\(\d{4}\)`, // (2020)
 		`\[\d{4}\]`, // [2020]
-		`\d{4}`,     // 2020
 		`s\d+e\d+`,  // S01E01
 		`\b(720p|1080p|2160p|4k|hd|uhd|bluray|web-dl|webrip|hdtv)\b`,
 		`\b(x264|x265|h264|h265|hevc)\b`,
 		`\b(aac|ac3|dts|mp3)\b`,
-		`\[.*?\]`, // [any brackets]
-		`\(.*?\)`, // (any parens)
-		`[_\-\.]`, // underscores, dashes, dots
+		`\[.*?\]`,   // [any brackets]
+		`\(.*?\)`,   // (any parens)
+		`[_\-\.]`,   // underscores, dashes, dots
+		`\b\d{4}\b`, // 2020
 	}
 
 	for _, pattern := range patterns {
@@ -420,6 +419,17 @@ func (m *Matcher) normalizeTitle(title string) string {
 	}, title)
 
 	return strings.TrimSpace(title)
+}
+
+func applyTVShowEpisodeFilters(query *gorm.DB, season, episode int) *gorm.DB {
+	if season > 0 {
+		query = query.Where("season = ?", season)
+	}
+	if episode > 0 {
+		query = query.Where("episode = ?", episode)
+	}
+
+	return query
 }
 
 // calculateStringSimilarity calculates similarity between two strings using Levenshtein distance
