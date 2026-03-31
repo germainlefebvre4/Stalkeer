@@ -10,6 +10,7 @@ import (
 	"time"
 
 	apperrors "github.com/glefebvre/stalkeer/internal/apperrors"
+	"github.com/glefebvre/stalkeer/internal/logger"
 	"github.com/glefebvre/stalkeer/internal/retry"
 )
 
@@ -19,6 +20,7 @@ type Client struct {
 	apiKey      string
 	httpClient  *http.Client
 	retryConfig retry.Config
+	logger      *logger.Logger
 }
 
 // Config holds Sonarr client configuration
@@ -27,6 +29,7 @@ type Config struct {
 	APIKey      string
 	Timeout     time.Duration
 	RetryConfig retry.Config
+	Logger      *logger.Logger
 }
 
 // Series represents a Sonarr series
@@ -74,6 +77,7 @@ func New(cfg Config) *Client {
 			Timeout: cfg.Timeout,
 		},
 		retryConfig: cfg.RetryConfig,
+		logger:      cfg.Logger,
 	}
 }
 
@@ -127,28 +131,41 @@ func (c *Client) GetSeriesDetails(ctx context.Context, id int) (*Series, error) 
 	return &series, nil
 }
 
-// GetMissingEpisodes retrieves all missing episodes across all series
-// Episodes are sorted by series ID, season number, and episode number (ascending)
+// GetMissingEpisodes retrieves all missing episodes across all series by paginating
+// the wanted/missing endpoint. Episodes are sorted by series title, season, and episode number.
 func (c *Client) GetMissingEpisodes(ctx context.Context) ([]Episode, error) {
-	// Use API-side sorting: series.sortTitle sorts by series, then we rely on natural episode ordering
-	// The API will sort episodes within each series by season and episode number by default
-	endpoint := "/api/v3/wanted/missing?page=1&pageSize=1000&sortKey=series.sortTitle&sortDirection=ascending"
+	const ps = 1000
+	var all []Episode
+	for page := 1; ; page++ {
+		endpoint := fmt.Sprintf("/api/v3/wanted/missing?page=%d&pageSize=%d&sortKey=series.sortTitle&sortDirection=ascending", page, ps)
 
-	var episodes []Episode
-	err := retry.Do(ctx, c.retryConfig, func() error {
-		eps, err := c.getEpisodes(ctx, endpoint)
+		var records []Episode
+		var total int
+		err := retry.Do(ctx, c.retryConfig, func() error {
+			r, t, err := c.getEpisodes(ctx, endpoint)
+			if err != nil {
+				return err
+			}
+			records = r
+			total = t
+			return nil
+		}, apperrors.IsRetryable)
+
 		if err != nil {
-			return err
+			return nil, apperrors.ExternalServiceError("sonarr", "failed to get missing episodes", err)
 		}
-		episodes = eps
-		return nil
-	}, apperrors.IsRetryable)
 
-	if err != nil {
-		return nil, apperrors.ExternalServiceError("sonarr", "failed to get missing episodes", err)
+		all = append(all, records...)
+
+		if c.logger != nil {
+			c.logger.Info(fmt.Sprintf("sonarr: fetched page %d (%d/%d episodes)", page, len(all), total))
+		}
+
+		if len(all) >= total || len(records) == 0 {
+			break
+		}
 	}
-
-	return episodes, nil
+	return all, nil
 }
 
 // GetEpisodeDetails retrieves detailed information for a specific episode
@@ -237,31 +254,32 @@ func (c *Client) getSingleSeries(ctx context.Context, endpoint string) (*Series,
 	return &series, nil
 }
 
-func (c *Client) getEpisodes(ctx context.Context, endpoint string) ([]Episode, error) {
+func (c *Client) getEpisodes(ctx context.Context, endpoint string) ([]Episode, int, error) {
 	req, err := c.newRequest(ctx, "GET", endpoint, nil)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("unexpected status code %d: %s", resp.StatusCode, string(body))
+		return nil, 0, fmt.Errorf("unexpected status code %d: %s", resp.StatusCode, string(body))
 	}
 
 	var response struct {
-		Records []Episode `json:"records"`
+		TotalRecords int       `json:"totalRecords"`
+		Records      []Episode `json:"records"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
-		return nil, fmt.Errorf("failed to decode response: %w", err)
+		return nil, 0, fmt.Errorf("failed to decode response: %w", err)
 	}
 
-	return response.Records, nil
+	return response.Records, response.TotalRecords, nil
 }
 
 func (c *Client) getEpisode(ctx context.Context, endpoint string) (*Episode, error) {

@@ -33,20 +33,25 @@ func TestNew(t *testing.T) {
 func TestGetMissingMovies(t *testing.T) {
 	movies := []Movie{
 		{ID: 1, Title: "Test Movie 1", Year: 2020, TMDBID: 101, Monitored: true, HasFile: false},
-		{ID: 2, Title: "Test Movie 2", Year: 2021, TMDBID: 102, Monitored: true, HasFile: true},
-		{ID: 3, Title: "Test Movie 3", Year: 2022, TMDBID: 103, Monitored: false, HasFile: false},
 	}
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/api/v3/movie" {
-			t.Errorf("expected path /api/v3/movie, got %s", r.URL.Path)
+		if r.URL.Path != "/api/v3/wanted/missing" {
+			t.Errorf("expected path /api/v3/wanted/missing, got %s", r.URL.Path)
 		}
 		if r.Header.Get("X-Api-Key") != "test-key" {
 			t.Errorf("expected X-Api-Key header")
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(movies)
+		response := struct {
+			TotalRecords int     `json:"totalRecords"`
+			Records      []Movie `json:"records"`
+		}{
+			TotalRecords: len(movies),
+			Records:      movies,
+		}
+		json.NewEncoder(w).Encode(response)
 	}))
 	defer server.Close()
 
@@ -65,7 +70,6 @@ func TestGetMissingMovies(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	// Should only return monitored movies without files
 	if len(missing) != 1 {
 		t.Errorf("expected 1 missing movie, got %d", len(missing))
 	}
@@ -193,12 +197,12 @@ func TestClientRetry(t *testing.T) {
 	attempts := 0
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		attempts++
-		if attempts < 2 {
-			w.WriteHeader(http.StatusServiceUnavailable)
-			return
-		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode([]Movie{})
+		response := struct {
+			TotalRecords int     `json:"totalRecords"`
+			Records      []Movie `json:"records"`
+		}{TotalRecords: 0, Records: nil}
+		json.NewEncoder(w).Encode(response)
 	}))
 	defer server.Close()
 
@@ -216,15 +220,102 @@ func TestClientRetry(t *testing.T) {
 	})
 
 	ctx := context.Background()
-	_, err := client.GetMissingMovies(ctx)
+	result, err := client.GetMissingMovies(ctx)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(result) != 0 {
+		t.Errorf("expected empty result, got %d movies", len(result))
+	}
+	if attempts != 1 {
+		t.Errorf("expected 1 request for empty result set, got %d", attempts)
+	}
+}
 
-	// The first attempt fails with 503, but second succeeds, so no error expected
-	if err == nil {
-		if attempts < 2 {
-			t.Errorf("expected at least 2 attempts, got %d", attempts)
+func TestGetMissingMoviesMultiPage(t *testing.T) {
+	allMovies := []Movie{
+		{ID: 1, Title: "Movie A", Year: 2020, TMDBID: 101},
+		{ID: 2, Title: "Movie B", Year: 2021, TMDBID: 102},
+		{ID: 3, Title: "Movie C", Year: 2022, TMDBID: 103},
+	}
+	requestCount := 0
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v3/wanted/missing" {
+			t.Errorf("expected path /api/v3/wanted/missing, got %s", r.URL.Path)
 		}
-	} else {
-		// If we still got an error, it means retries weren't working
-		t.Fatalf("unexpected error after retries: %v", err)
+		page := r.URL.Query().Get("page")
+		pageSize := 2
+
+		requestCount++
+		var records []Movie
+		switch page {
+		case "1":
+			records = allMovies[:pageSize]
+		default:
+			records = allMovies[pageSize:]
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		response := struct {
+			TotalRecords int     `json:"totalRecords"`
+			Records      []Movie `json:"records"`
+		}{
+			TotalRecords: len(allMovies),
+			Records:      records,
+		}
+		json.NewEncoder(w).Encode(response)
+	}))
+	defer server.Close()
+
+	client := New(Config{
+		BaseURL: server.URL,
+		APIKey:  "test-key",
+		Timeout: 5 * time.Second,
+		RetryConfig: retry.Config{
+			MaxAttempts: 1,
+		},
+	})
+
+	ctx := context.Background()
+	result, err := client.GetMissingMovies(ctx)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(result) != len(allMovies) {
+		t.Errorf("expected %d movies, got %d", len(allMovies), len(result))
+	}
+	if requestCount != 2 {
+		t.Errorf("expected 2 page requests, got %d", requestCount)
+	}
+}
+
+func TestGetMissingMoviesEmpty(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		response := struct {
+			TotalRecords int     `json:"totalRecords"`
+			Records      []Movie `json:"records"`
+		}{TotalRecords: 0, Records: nil}
+		json.NewEncoder(w).Encode(response)
+	}))
+	defer server.Close()
+
+	client := New(Config{
+		BaseURL: server.URL,
+		APIKey:  "test-key",
+		Timeout: 5 * time.Second,
+		RetryConfig: retry.Config{
+			MaxAttempts: 1,
+		},
+	})
+
+	ctx := context.Background()
+	result, err := client.GetMissingMovies(ctx)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(result) != 0 {
+		t.Errorf("expected empty slice, got %d movies", len(result))
 	}
 }

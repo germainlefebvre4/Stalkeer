@@ -87,9 +87,11 @@ func TestGetMissingEpisodes(t *testing.T) {
 
 		w.Header().Set("Content-Type", "application/json")
 		response := struct {
-			Records []Episode `json:"records"`
+			TotalRecords int       `json:"totalRecords"`
+			Records      []Episode `json:"records"`
 		}{
-			Records: episodes,
+			TotalRecords: len(episodes),
+			Records:      episodes,
 		}
 		json.NewEncoder(w).Encode(response)
 	}))
@@ -205,5 +207,94 @@ func TestUpdateEpisode(t *testing.T) {
 	err := client.UpdateEpisode(ctx, episode)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestGetMissingEpisodesMultiPage(t *testing.T) {
+	// Three episodes total, pageSize=2 → should make 2 requests.
+	allEpisodes := []Episode{
+		{ID: 1, SeriesID: 1, SeasonNumber: 1, EpisodeNumber: 1},
+		{ID: 2, SeriesID: 1, SeasonNumber: 1, EpisodeNumber: 2},
+		{ID: 3, SeriesID: 2, SeasonNumber: 1, EpisodeNumber: 1},
+	}
+	requestCount := 0
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v3/wanted/missing" {
+			t.Errorf("expected path /api/v3/wanted/missing, got %s", r.URL.Path)
+		}
+		page := r.URL.Query().Get("page")
+		pageSize := 2
+
+		requestCount++
+		var records []Episode
+		switch page {
+		case "1":
+			records = allEpisodes[:pageSize]
+		default:
+			records = allEpisodes[pageSize:]
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		response := struct {
+			TotalRecords int       `json:"totalRecords"`
+			Records      []Episode `json:"records"`
+		}{
+			TotalRecords: len(allEpisodes),
+			Records:      records,
+		}
+		json.NewEncoder(w).Encode(response)
+	}))
+	defer server.Close()
+
+	client := New(Config{
+		BaseURL: server.URL,
+		APIKey:  "test-key",
+		Timeout: 5 * time.Second,
+		RetryConfig: retry.Config{
+			MaxAttempts: 1,
+		},
+	})
+
+	ctx := context.Background()
+	result, err := client.GetMissingEpisodes(ctx)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(result) != len(allEpisodes) {
+		t.Errorf("expected %d episodes, got %d", len(allEpisodes), len(result))
+	}
+	if requestCount != 2 {
+		t.Errorf("expected 2 page requests, got %d", requestCount)
+	}
+}
+
+func TestGetMissingEpisodesEmpty(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		response := struct {
+			TotalRecords int       `json:"totalRecords"`
+			Records      []Episode `json:"records"`
+		}{TotalRecords: 0, Records: nil}
+		json.NewEncoder(w).Encode(response)
+	}))
+	defer server.Close()
+
+	client := New(Config{
+		BaseURL: server.URL,
+		APIKey:  "test-key",
+		Timeout: 5 * time.Second,
+		RetryConfig: retry.Config{
+			MaxAttempts: 1,
+		},
+	})
+
+	ctx := context.Background()
+	result, err := client.GetMissingEpisodes(ctx)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(result) != 0 {
+		t.Errorf("expected empty slice, got %d episodes", len(result))
 	}
 }

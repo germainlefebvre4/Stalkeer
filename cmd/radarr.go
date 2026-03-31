@@ -73,6 +73,7 @@ and download matched items from M3U playlist stream URLs.`,
 			BaseURL: cfg.Radarr.URL,
 			APIKey:  cfg.Radarr.APIKey,
 			Timeout: time.Duration(cfg.Downloads.Timeout) * time.Second,
+			Logger:  logger.AppLogger(),
 			RetryConfig: retry.Config{
 				MaxAttempts:       cfg.Downloads.RetryAttempts,
 				InitialBackoff:    2 * time.Second,

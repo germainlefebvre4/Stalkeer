@@ -10,6 +10,7 @@ import (
 	"time"
 
 	apperrors "github.com/glefebvre/stalkeer/internal/apperrors"
+	"github.com/glefebvre/stalkeer/internal/logger"
 	"github.com/glefebvre/stalkeer/internal/retry"
 )
 
@@ -19,6 +20,7 @@ type Client struct {
 	apiKey      string
 	httpClient  *http.Client
 	retryConfig retry.Config
+	logger      *logger.Logger
 }
 
 // Config holds Radarr client configuration
@@ -27,6 +29,7 @@ type Config struct {
 	APIKey      string
 	Timeout     time.Duration
 	RetryConfig retry.Config
+	Logger      *logger.Logger
 }
 
 // Movie represents a Radarr movie
@@ -61,36 +64,45 @@ func New(cfg Config) *Client {
 			Timeout: cfg.Timeout,
 		},
 		retryConfig: cfg.RetryConfig,
+		logger:      cfg.Logger,
 	}
 }
 
-// GetMissingMovies retrieves all monitored movies that are not downloaded
+// GetMissingMovies retrieves all monitored movies that are not downloaded by paginating
+// the wanted/missing endpoint with server-side filtering.
 func (c *Client) GetMissingMovies(ctx context.Context) ([]Movie, error) {
-	endpoint := "/api/v3/movie"
+	const ps = 1000
+	var all []Movie
+	for page := 1; ; page++ {
+		endpoint := fmt.Sprintf("/api/v3/wanted/missing?page=%d&pageSize=%d&sortKey=title&sortDirection=ascending", page, ps)
 
-	var allMovies []Movie
-	err := retry.Do(ctx, c.retryConfig, func() error {
-		movies, err := c.getMovies(ctx, endpoint)
+		var records []Movie
+		var total int
+		err := retry.Do(ctx, c.retryConfig, func() error {
+			r, t, err := c.getPagedMovies(ctx, endpoint)
+			if err != nil {
+				return err
+			}
+			records = r
+			total = t
+			return nil
+		}, apperrors.IsRetryable)
+
 		if err != nil {
-			return err
+			return nil, apperrors.ExternalServiceError("radarr", "failed to get missing movies", err)
 		}
-		allMovies = movies
-		return nil
-	}, apperrors.IsRetryable)
 
-	if err != nil {
-		return nil, apperrors.ExternalServiceError("radarr", "failed to get movies", err)
-	}
+		all = append(all, records...)
 
-	// Filter for monitored movies without files
-	var missing []Movie
-	for _, movie := range allMovies {
-		if movie.Monitored && !movie.HasFile {
-			missing = append(missing, movie)
+		if c.logger != nil {
+			c.logger.Info(fmt.Sprintf("radarr: fetched page %d (%d/%d movies)", page, len(all), total))
+		}
+
+		if len(all) >= total || len(records) == 0 {
+			break
 		}
 	}
-
-	return missing, nil
+	return all, nil
 }
 
 // GetMovieDetails retrieves detailed information for a specific movie
@@ -127,6 +139,34 @@ func (c *Client) UpdateMovie(ctx context.Context, movie *Movie) error {
 	}
 
 	return nil
+}
+
+func (c *Client) getPagedMovies(ctx context.Context, endpoint string) ([]Movie, int, error) {
+	req, err := c.newRequest(ctx, "GET", endpoint, nil)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, 0, fmt.Errorf("unexpected status code %d: %s", resp.StatusCode, string(body))
+	}
+
+	var response struct {
+		TotalRecords int     `json:"totalRecords"`
+		Records      []Movie `json:"records"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
+		return nil, 0, fmt.Errorf("failed to decode response: %w", err)
+	}
+
+	return response.Records, response.TotalRecords, nil
 }
 
 func (c *Client) getMovies(ctx context.Context, endpoint string) ([]Movie, error) {
