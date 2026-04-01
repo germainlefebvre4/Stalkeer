@@ -107,7 +107,7 @@ func TestGetMissingEpisodes(t *testing.T) {
 	})
 
 	ctx := context.Background()
-	missing, err := client.GetMissingEpisodes(ctx)
+	missing, err := client.GetMissingEpisodes(ctx, FetchOptions{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -257,7 +257,7 @@ func TestGetMissingEpisodesMultiPage(t *testing.T) {
 	})
 
 	ctx := context.Background()
-	result, err := client.GetMissingEpisodes(ctx)
+	result, err := client.GetMissingEpisodes(ctx, FetchOptions{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -290,11 +290,103 @@ func TestGetMissingEpisodesEmpty(t *testing.T) {
 	})
 
 	ctx := context.Background()
-	result, err := client.GetMissingEpisodes(ctx)
+	result, err := client.GetMissingEpisodes(ctx, FetchOptions{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if len(result) != 0 {
 		t.Errorf("expected empty slice, got %d episodes", len(result))
 	}
+}
+
+func TestGetMissingEpisodesWithLimit(t *testing.T) {
+	allEpisodes := []Episode{
+		{ID: 1, SeriesID: 1, SeasonNumber: 1, EpisodeNumber: 1},
+		{ID: 2, SeriesID: 1, SeasonNumber: 1, EpisodeNumber: 2},
+		{ID: 3, SeriesID: 2, SeasonNumber: 1, EpisodeNumber: 1},
+		{ID: 4, SeriesID: 2, SeasonNumber: 1, EpisodeNumber: 2},
+		{ID: 5, SeriesID: 3, SeasonNumber: 1, EpisodeNumber: 1},
+	}
+	requestCount := 0
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		page := r.URL.Query().Get("page")
+		const pageSize = 2
+		requestCount++
+		var records []Episode
+		switch page {
+		case "1":
+			records = allEpisodes[:pageSize]
+		case "2":
+			records = allEpisodes[pageSize : pageSize*2]
+		default:
+			records = allEpisodes[pageSize*2:]
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(struct {
+			TotalRecords int       `json:"totalRecords"`
+			Records      []Episode `json:"records"`
+		}{TotalRecords: len(allEpisodes), Records: records})
+	}))
+	defer server.Close()
+
+	client := New(Config{
+		BaseURL:     server.URL,
+		APIKey:      "test-key",
+		Timeout:     5 * time.Second,
+		RetryConfig: retry.Config{MaxAttempts: 1},
+	})
+
+	t.Run("limit within first page", func(t *testing.T) {
+		requestCount = 0
+		result, err := client.GetMissingEpisodes(context.Background(), FetchOptions{Limit: 1})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(result) != 1 {
+			t.Errorf("expected 1 episode, got %d", len(result))
+		}
+		if requestCount != 1 {
+			t.Errorf("expected 1 request, got %d", requestCount)
+		}
+	})
+
+	t.Run("limit on page boundary", func(t *testing.T) {
+		requestCount = 0
+		result, err := client.GetMissingEpisodes(context.Background(), FetchOptions{Limit: 2})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(result) != 2 {
+			t.Errorf("expected 2 episodes, got %d", len(result))
+		}
+		if requestCount != 1 {
+			t.Errorf("expected 1 request, got %d", requestCount)
+		}
+	})
+
+	t.Run("limit spanning two pages", func(t *testing.T) {
+		requestCount = 0
+		result, err := client.GetMissingEpisodes(context.Background(), FetchOptions{Limit: 3})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(result) != 3 {
+			t.Errorf("expected 3 episodes, got %d", len(result))
+		}
+		if requestCount != 2 {
+			t.Errorf("expected 2 requests, got %d", requestCount)
+		}
+	})
+
+	t.Run("limit larger than total", func(t *testing.T) {
+		requestCount = 0
+		result, err := client.GetMissingEpisodes(context.Background(), FetchOptions{Limit: 100})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(result) != len(allEpisodes) {
+			t.Errorf("expected %d episodes, got %d", len(allEpisodes), len(result))
+		}
+	})
 }

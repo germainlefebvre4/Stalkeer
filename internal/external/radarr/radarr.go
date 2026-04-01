@@ -47,6 +47,11 @@ type Movie struct {
 	QualityProfileID int       `json:"qualityProfileId"`
 }
 
+// FetchOptions controls how many records are fetched. Limit 0 means unlimited.
+type FetchOptions struct {
+	Limit int
+}
+
 // New creates a new Radarr client
 func New(cfg Config) *Client {
 	if cfg.Timeout == 0 {
@@ -70,7 +75,10 @@ func New(cfg Config) *Client {
 
 // GetMissingMovies retrieves all monitored movies that are not downloaded by paginating
 // the wanted/missing endpoint with server-side filtering.
-func (c *Client) GetMissingMovies(ctx context.Context) ([]Movie, error) {
+// GetMissingMovies retrieves missing movies by paginating the wanted/missing
+// endpoint. Pagination stops when all records are fetched or opts.Limit is reached
+// (0 = unlimited).
+func (c *Client) GetMissingMovies(ctx context.Context, opts FetchOptions) ([]Movie, error) {
 	const ps = 1000
 	var all []Movie
 	for page := 1; ; page++ {
@@ -98,6 +106,10 @@ func (c *Client) GetMissingMovies(ctx context.Context) ([]Movie, error) {
 			c.logger.Info(fmt.Sprintf("radarr: fetched page %d (%d/%d movies)", page, len(all), total))
 		}
 
+		if opts.Limit > 0 && len(all) >= opts.Limit {
+			all = all[:opts.Limit]
+			break
+		}
 		if len(all) >= total || len(records) == 0 {
 			break
 		}

@@ -60,6 +60,11 @@ type Episode struct {
 	AirDateUtc    time.Time `json:"airDateUtc"`
 }
 
+// FetchOptions controls how many records are fetched. Limit 0 means unlimited.
+type FetchOptions struct {
+	Limit int
+}
+
 // New creates a new Sonarr client
 func New(cfg Config) *Client {
 	if cfg.Timeout == 0 {
@@ -131,9 +136,10 @@ func (c *Client) GetSeriesDetails(ctx context.Context, id int) (*Series, error) 
 	return &series, nil
 }
 
-// GetMissingEpisodes retrieves all missing episodes across all series by paginating
-// the wanted/missing endpoint. Episodes are sorted by series title, season, and episode number.
-func (c *Client) GetMissingEpisodes(ctx context.Context) ([]Episode, error) {
+// GetMissingEpisodes retrieves missing episodes by paginating the wanted/missing
+// endpoint. Pagination stops when all records are fetched or opts.Limit is reached
+// (0 = unlimited). Episodes are sorted by series title, season, and episode number.
+func (c *Client) GetMissingEpisodes(ctx context.Context, opts FetchOptions) ([]Episode, error) {
 	const ps = 1000
 	var all []Episode
 	for page := 1; ; page++ {
@@ -161,6 +167,10 @@ func (c *Client) GetMissingEpisodes(ctx context.Context) ([]Episode, error) {
 			c.logger.Info(fmt.Sprintf("sonarr: fetched page %d (%d/%d episodes)", page, len(all), total))
 		}
 
+		if opts.Limit > 0 && len(all) >= opts.Limit {
+			all = all[:opts.Limit]
+			break
+		}
 		if len(all) >= total || len(records) == 0 {
 			break
 		}

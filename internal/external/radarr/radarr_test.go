@@ -65,7 +65,7 @@ func TestGetMissingMovies(t *testing.T) {
 	})
 
 	ctx := context.Background()
-	missing, err := client.GetMissingMovies(ctx)
+	missing, err := client.GetMissingMovies(ctx, FetchOptions{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -220,7 +220,7 @@ func TestClientRetry(t *testing.T) {
 	})
 
 	ctx := context.Background()
-	result, err := client.GetMissingMovies(ctx)
+	result, err := client.GetMissingMovies(ctx, FetchOptions{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -278,7 +278,7 @@ func TestGetMissingMoviesMultiPage(t *testing.T) {
 	})
 
 	ctx := context.Background()
-	result, err := client.GetMissingMovies(ctx)
+	result, err := client.GetMissingMovies(ctx, FetchOptions{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -311,11 +311,103 @@ func TestGetMissingMoviesEmpty(t *testing.T) {
 	})
 
 	ctx := context.Background()
-	result, err := client.GetMissingMovies(ctx)
+	result, err := client.GetMissingMovies(ctx, FetchOptions{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if len(result) != 0 {
 		t.Errorf("expected empty slice, got %d movies", len(result))
 	}
+}
+
+func TestGetMissingMoviesWithLimit(t *testing.T) {
+	allMovies := []Movie{
+		{ID: 1, Title: "Movie A", Year: 2020, TMDBID: 101},
+		{ID: 2, Title: "Movie B", Year: 2021, TMDBID: 102},
+		{ID: 3, Title: "Movie C", Year: 2022, TMDBID: 103},
+		{ID: 4, Title: "Movie D", Year: 2023, TMDBID: 104},
+		{ID: 5, Title: "Movie E", Year: 2024, TMDBID: 105},
+	}
+	requestCount := 0
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		page := r.URL.Query().Get("page")
+		const pageSize = 2
+		requestCount++
+		var records []Movie
+		switch page {
+		case "1":
+			records = allMovies[:pageSize]
+		case "2":
+			records = allMovies[pageSize : pageSize*2]
+		default:
+			records = allMovies[pageSize*2:]
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(struct {
+			TotalRecords int     `json:"totalRecords"`
+			Records      []Movie `json:"records"`
+		}{TotalRecords: len(allMovies), Records: records})
+	}))
+	defer server.Close()
+
+	client := New(Config{
+		BaseURL:     server.URL,
+		APIKey:      "test-key",
+		Timeout:     5 * time.Second,
+		RetryConfig: retry.Config{MaxAttempts: 1},
+	})
+
+	t.Run("limit within first page", func(t *testing.T) {
+		requestCount = 0
+		result, err := client.GetMissingMovies(context.Background(), FetchOptions{Limit: 1})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(result) != 1 {
+			t.Errorf("expected 1 movie, got %d", len(result))
+		}
+		if requestCount != 1 {
+			t.Errorf("expected 1 request, got %d", requestCount)
+		}
+	})
+
+	t.Run("limit on page boundary", func(t *testing.T) {
+		requestCount = 0
+		result, err := client.GetMissingMovies(context.Background(), FetchOptions{Limit: 2})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(result) != 2 {
+			t.Errorf("expected 2 movies, got %d", len(result))
+		}
+		if requestCount != 1 {
+			t.Errorf("expected 1 request, got %d", requestCount)
+		}
+	})
+
+	t.Run("limit spanning two pages", func(t *testing.T) {
+		requestCount = 0
+		result, err := client.GetMissingMovies(context.Background(), FetchOptions{Limit: 3})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(result) != 3 {
+			t.Errorf("expected 3 movies, got %d", len(result))
+		}
+		if requestCount != 2 {
+			t.Errorf("expected 2 requests, got %d", requestCount)
+		}
+	})
+
+	t.Run("limit larger than total", func(t *testing.T) {
+		requestCount = 0
+		result, err := client.GetMissingMovies(context.Background(), FetchOptions{Limit: 100})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(result) != len(allMovies) {
+			t.Errorf("expected %d movies, got %d", len(allMovies), len(result))
+		}
+	})
 }

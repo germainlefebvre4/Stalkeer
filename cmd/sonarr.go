@@ -90,7 +90,7 @@ and download matched items from M3U playlist stream URLs.`,
 		// Fetch missing episodes
 		fmt.Println("Fetching missing episodes from Sonarr...")
 		ctx := context.Background()
-		missingEpisodes, err := sonarrClient.GetMissingEpisodes(ctx)
+		missingEpisodes, err := sonarrClient.GetMissingEpisodes(ctx, sonarr.FetchOptions{Limit: limit})
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error fetching missing episodes: %v\n", err)
 			os.Exit(1)
@@ -112,12 +112,6 @@ and download matched items from M3U playlist stream URLs.`,
 		if len(missingEpisodes) == 0 {
 			fmt.Println("No missing episodes to download!")
 			return
-		}
-
-		// Apply limit
-		if limit > 0 && limit < len(missingEpisodes) {
-			missingEpisodes = missingEpisodes[:limit]
-			fmt.Printf("Processing first %d episodes\n\n", limit)
 		}
 
 		// Match and download

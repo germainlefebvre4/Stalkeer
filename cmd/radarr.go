@@ -86,7 +86,7 @@ and download matched items from M3U playlist stream URLs.`,
 		// Fetch missing movies
 		fmt.Println("Fetching missing movies from Radarr...")
 		ctx := context.Background()
-		missingMovies, err := radarrClient.GetMissingMovies(ctx)
+		missingMovies, err := radarrClient.GetMissingMovies(ctx, radarr.FetchOptions{Limit: limit})
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error fetching missing movies: %v\n", err)
 			os.Exit(1)
@@ -97,12 +97,6 @@ and download matched items from M3U playlist stream URLs.`,
 		if len(missingMovies) == 0 {
 			fmt.Println("No missing movies to download!")
 			return
-		}
-
-		// Apply limit
-		if limit > 0 && limit < len(missingMovies) {
-			missingMovies = missingMovies[:limit]
-			fmt.Printf("Processing first %d movies\n\n", limit)
 		}
 
 		// Match and download
